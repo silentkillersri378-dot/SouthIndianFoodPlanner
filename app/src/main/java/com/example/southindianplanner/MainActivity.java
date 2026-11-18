@@ -172,12 +172,13 @@ public class MainActivity extends Activity {
       for(String item:list){
         final String id=key(item);
         LinearLayout c=card(item,priceSummary(id));
-        CheckBox have=new CheckBox(this);have.setText("Already have at home — don't buy");have.setChecked(prefs.getBoolean("have_"+day+"_"+id,false));c.addView(have);
-        have.setOnCheckedChangeListener((v,on)->prefs.edit().putBoolean("have_"+day+"_"+id,on).apply());
+        CheckBox have=new CheckBox(this);have.setText("Already have at home — don't buy");have.setChecked(prefs.getBoolean("have_"+id,false));c.addView(have);
+        have.setOnCheckedChangeListener((v,on)->prefs.edit().putBoolean("have_"+id,on).apply());
         Button buy=new Button(this);buy.setText("I bought this • Enter quantity & price");buy.setAllCaps(false);c.addView(buy);buy.setOnClickListener(v->recordPurchase(item));
       }
       card("MONTHLY SPENDING","Actual purchases this month: "+money(monthSpend())+"\nRice is recorded only in the month you buy it (for example, your occasional ₹1,500 purchase). No automatic monthly rice charge.");
-      button("View monthly spending history",()->showMonthlyHistory());\n      button("View all purchase history",()->showHistory());
+      button("View monthly spending history",()->showMonthlyHistory());
+      button("View all purchase history",()->showHistory());
       button("Add another grocery item",()->addCustomIngredient());
     }
 
@@ -188,7 +189,7 @@ public class MainActivity extends Activity {
       else{
         for(String meal:meals[d])mapDishIngredients(meal,out);
       }
-      out.add("Milk (daily 500 ml)");
+      out.add("Milk ("+prefs.getString("milk_qty","500")+" ml daily)");
       return out;
     }
     void add(LinkedHashSet<String> s,String... values){for(String v:values)s.add(v);}
@@ -258,7 +259,7 @@ public class MainActivity extends Activity {
       card("DAILY MILK","Daily requirement: "+prefs.getString("milk_qty","500")+" ml. Actual milk purchases are entered in Shopping and counted only when you buy them.");
       button("Change daily milk requirement",()->dialogFields("Daily milk requirement",new String[]{"Millilitres per day"},new String[]{prefs.getString("milk_qty","500")},v->{double ml=num(v[0]);if(ml>0)prefs.edit().putString("milk_qty",String.valueOf(ml)).apply();draw();}));
       double spent=monthSpend();
-      card("MONTHLY GROCERY BUDGET","First month: tracking your actual purchases before setting a budget.\nSpent this month: "+money(spent)+(prefs.contains("budget")?"\nCurrent budget: "+money(num(prefs.getString("budget","0"))):"\nNo budget set yet."));
+      card("MONTHLY GROCERY BUDGET","First month: tracking your actual purchases before setting a budget.\nSpent this month: "+money(spent)+(prefs.contains("budget")?"\nCurrent budget: "+money(num(prefs.getString("budget","0"))):"\nNo budget set yet.")+"\n\nPrevious months:\n"+monthHistorySummary());
       button(prefs.contains("budget")?"Change monthly budget":"Set budget after reviewing spending",()->dialogFields("Monthly grocery budget",new String[]{"Monthly budget (₹)"},new String[]{prefs.getString("budget","")},v->{if(v[0].isEmpty())prefs.edit().remove("budget").apply();else if(num(v[0])>0)prefs.edit().putString("budget",v[0]).apply();draw();}));
       card("MORNING NOTIFICATION","Today's breakfast, lunch and dinner. Separate time and enable switch.");
       addReminderControls(true);
