@@ -105,7 +105,7 @@ public class MainActivity extends Activity {
         else{l=in.getSystemWindowInsetLeft();t=in.getSystemWindowInsetTop();r=in.getSystemWindowInsetRight();b=in.getSystemWindowInsetBottom();}
         root.setPadding(16+l,10+t,16+r,6+b);return in;
       });
-      root.addView(text("🥥 OORU MEALS  •  2 ADULTS",17,green,true));
+      root.addView(text("🥥 NSV SMART KITCHEN  •  2 ADULTS",17,green,true));
       header=text("",25,ink,true);LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);hp.topMargin=12;hp.bottomMargin=10;root.addView(header,hp);
       ScrollView sc=new ScrollView(this);sc.setFillViewport(false);body=col();sc.addView(body);root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
       nav=new LinearLayout(this);nav.setGravity(Gravity.CENTER);nav.setBackgroundColor(Color.WHITE);nav.setElevation(8);
@@ -431,7 +431,7 @@ public class MainActivity extends Activity {
       if(Build.VERSION.SDK_INT>=26){
         NotificationManager nm=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
         NotificationChannel ch=new NotificationChannel("ooru_meals_reminders","Ooru Meals reminders",NotificationManager.IMPORTANCE_HIGH);
-        ch.setDescription("Morning and evening meal reminders");ch.enableVibration(true);ch.setVibrationPattern(new long[]{0,300,150,300});
+        ch.setDescription("NSV morning, evening and low-stock reminders");ch.enableVibration(true);ch.setVibrationPattern(new long[]{0,300,150,300});
         ch.setSound(android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION),new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
         nm.createNotificationChannel(ch);
       }
