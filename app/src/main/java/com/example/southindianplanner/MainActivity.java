@@ -432,7 +432,41 @@ public class MainActivity extends Activity {
       if(s.length()==0)s.append("No purchases recorded yet.");
       new AlertDialog.Builder(this).setTitle("Purchase history").setMessage(s.toString()).setPositiveButton("Close",null).show();
     }
-    void addCustomIngredient(){
+        void scanGroceryBill(){
+      Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);pick.addCategory(Intent.CATEGORY_OPENABLE);pick.setType("image/*");
+      pick.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"image/jpeg","image/png","image/webp"});startActivityForResult(pick,REQ_BILL_SCAN);
+    }
+    void processBillUri(android.net.Uri uri){
+      Toast.makeText(this,"Reading bill…",Toast.LENGTH_SHORT).show();
+      Executors.newSingleThreadExecutor().execute(()->{
+        try{com.google.mlkit.vision.text.Text t=Tasks.await(TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(InputImage.fromFilePath(this,uri)));
+          String raw=t.getText();runOnUiThread(()->reviewBillText(raw));
+        }catch(Exception e){runOnUiThread(()->new AlertDialog.Builder(this).setTitle("Could not read bill").setMessage("Try a clearer photo. "+e.getMessage()).setPositiveButton("OK",null).show());}
+      });
+    }
+    void reviewBillText(String raw){
+      LinearLayout box=col();box.setPadding(12,4,12,4);
+      box.addView(text("Review and edit before saving. Format: Item | Quantity | Unit | Line total. Example: Onion | 2 | kg | 80",13,muted,false));
+      EditText edit=new EditText(this);edit.setGravity(Gravity.TOP);edit.setMinLines(10);edit.setTextSize(14);
+      StringBuilder rows=new StringBuilder();
+      for(String line:raw.split("\\r?\\n")){String s=line.trim().replaceAll("\\s+"," ");if(s.length()<3)continue;String[] words=s.split(" ");String amount=words[words.length-1].replace(",","");
+        try{Double.parseDouble(amount);String name=s.substring(0,s.lastIndexOf(words[words.length-1])).trim();
+          if(name.length()>1&&!name.toLowerCase(Locale.US).contains("total")&&!name.toLowerCase(Locale.US).contains("gst"))rows.append(name).append(" | 1 | item | ").append(amount).append("\\n");
+        }catch(Exception ignored){}
+      }
+      edit.setText(rows.length()>0?rows.toString():raw);box.addView(edit);ScrollView sc=new ScrollView(this);sc.addView(box);
+      new AlertDialog.Builder(this).setTitle("Review scanned bill").setView(sc).setNegativeButton("Cancel",null).
+        setPositiveButton("Save purchases",(d,w)->saveBillLines(edit.getText().toString())).show();
+    }
+    void saveBillLines(String content){
+      int saved=0;for(String line:content.split("\\r?\\n")){String[] p=line.split("\\\\|");if(p.length<4)continue;
+        String name=p[0].trim(),unit=p[2].trim();double qty=num(p[1].trim()),total=num(p[3].trim());if(name.isEmpty()||unit.isEmpty()||qty<=0||p[3].trim().isEmpty()||total<0)continue;
+        String id=key(name);JSONArray h=purchases(id);JSONObject o=new JSONObject();
+        try{o.put("date",new SimpleDateFormat("yyyy-MM-dd",Locale.US).format(new Date()));o.put("qty",qty);o.put("unit",unit);o.put("total",total);o.put("unitPrice",total/qty);o.put("source","bill_scan");h.put(o);prefs.edit().putString("purchases_"+id,h.toString()).putString("stock_"+id,"available").apply();saved++;}catch(Exception ignored){}
+      }
+      Toast.makeText(this,saved+" item(s) saved to purchase history, price history and stock.",Toast.LENGTH_LONG).show();draw();
+    }
+void addCustomIngredient(){
       dialogFields("Add grocery item",new String[]{"Ingredient name"},new String[]{""},v->{if(!v[0].trim().isEmpty()){String name=v[0].trim();prefs.edit().putString("custom_item_"+key(name),name).apply();Toast.makeText(this,"Added. You can record a purchase from the shopping checklist.",Toast.LENGTH_SHORT).show();draw();}});
     }
 
