@@ -575,23 +575,79 @@ public class MainActivity extends Activity {
       String name=String.join(" ",t).trim();if(name.isEmpty())return null;
       return new String[]{name,billCleanNumber(quantity),billCleanNumber(total)};
     }
+    String[] parseNumberedBillRow(String source){
+      String[] parts=source.split("\\r?\\n");
+      if(parts.length==0)return null;
+      String first=parts[0].trim().replaceAll("\\s+"," ");
+      first=first.replaceFirst("^\\d{1,2}\\s*","");
+      java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?<![A-Za-z])(?:₹\\s*)?([0-9][0-9,]*(?:\\.[0-9]+)?)(\\s*%)?(?![A-Za-z])").matcher(first);
+      ArrayList<Double> values=new ArrayList<>();
+      int nameEnd=-1;
+      while(m.find()){
+        if(nameEnd<0)nameEnd=m.start();
+        if(m.group(2)==null||m.group(2).trim().isEmpty()){
+          try{values.add(Double.parseDouble(m.group(1).replace(",","")));}catch(Exception ignored){}
+        }
+      }
+      if(nameEnd<0||values.size()<3)return null;
+      StringBuilder name=new StringBuilder(first.substring(0,nameEnd).trim());
+      for(int i=1;i<parts.length;i++){
+        String extra=parts[i].trim().replaceAll("\\s+"," ");
+        String lower=extra.toLowerCase(Locale.US);
+        if(extra.isEmpty()||lower.startsWith("hsn")||lower.matches(".*\\b\\d{6,}\\b.*"))continue;
+        // Keep wrapped descriptions such as "Milk 500ml", but not a second line of price columns.
+        if(extra.matches(".*\\d+[,.]\\d{2}.*"))continue;
+        if(extra.matches("^[A-Za-z][A-Za-z0-9 /().-]*$"))name.append(" ").append(extra);
+      }
+      double quantity=values.get(0),rate=values.get(1),total=values.get(values.size()-1);
+      // Some POS printers place the unit rate before the quantity (notably packaged milk).
+      if(quantity>1.0&&rate>0.0&&rate<=1.0){double swap=quantity;quantity=rate;rate=swap;}
+      if(quantity<=0||total<0||name.length()==0)return null;
+      return new String[]{name.toString().trim(),String.format(Locale.US,"%.3f",quantity),String.format(Locale.US,"%.2f",total)};
+    }
     String prepareBillRows(String raw){
-      StringBuilder rows=new StringBuilder();String pending="";
-      for(String source:raw.split("\\r?\\n")){
+      String normalized=(raw==null?"":raw).replace("\\\\n","\n").replace("\\\\r","\r").replace('\r','\n');
+      StringBuilder rows=new StringBuilder();
+      ArrayList<String> numbered=new ArrayList<>();
+      StringBuilder current=new StringBuilder();
+      for(String source:normalized.split("\\n")){
         String line=source.trim().replaceAll("\\s+"," ");if(line.isEmpty())continue;
         String lower=line.toLowerCase(Locale.US);
         if(lower.startsWith("hsn")||lower.contains("invoice no")||lower.contains("order no")||lower.contains("gstin")||lower.contains("phone no")||
           lower.contains("site no")||lower.contains("taxable")||lower.startsWith("cgst")||lower.startsWith("sgst")||lower.startsWith("subtotal")||
           lower.equals("total")||lower.startsWith("thank you")||lower.startsWith("s.no")||lower.startsWith("items")||lower.startsWith("tax %")||
           lower.startsWith("operator")||lower.startsWith("payment method")||lower.contains("kpn fresh")||lower.contains("tax invoice"))continue;
-        String candidate=(pending+" "+line).trim();String[] parsed=parseBillRow(candidate);
-        if(parsed!=null){
-          String name=canonicalBillItem(parsed[0]);double qty=num(parsed[1]),total=num(parsed[2]);
-          if(!name.isEmpty()&&qty>0&&total>=0)rows.append(name).append(" | ").append(parsed[1]).append(" | ").append(billUnit(name,parsed[0])).append(" | ").append(String.format(Locale.US,"%.2f",total)).append("\\n");
-          pending="";continue;
+        if(line.matches("^\\d{1,2}\\s+.*")){
+          if(current.length()>0)numbered.add(current.toString());
+          current.setLength(0);current.append(line);
+        }else if(current.length()>0){
+          current.append("\n").append(line);
         }
-        if(!line.matches("^[0-9\\s.,%₹]+$")&&!lower.matches(".*\\b\\d{6,}\\b.*")&&
-          !lower.startsWith("invoice")&&!lower.startsWith("order")&&!lower.startsWith("phone")&&!lower.startsWith("gstin"))pending=candidate;
+      }
+      if(current.length()>0)numbered.add(current.toString());
+      for(String row:numbered){
+        String[] parsed=parseNumberedBillRow(row);
+        if(parsed==null)continue;
+        String name=canonicalBillItem(parsed[0]);double qty=num(parsed[1]),total=num(parsed[2]);
+        if(!name.isEmpty()&&qty>0&&total>=0)rows.append(name).append(" | ").append(parsed[1]).append(" | ").append(billUnit(name,parsed[0])).append(" | ").append(String.format(Locale.US,"%.2f",total)).append("\n");
+      }
+      // Keep the legacy parser as a fallback for receipts without numbered item rows.
+      if(rows.length()==0){
+        String pending="";
+        for(String source:normalized.split("\\n")){
+          String line=source.trim().replaceAll("\\s+"," ");if(line.isEmpty())continue;
+          String lower=line.toLowerCase(Locale.US);
+          if(lower.startsWith("hsn")||lower.contains("invoice no")||lower.contains("order no")||lower.contains("gstin")||lower.startsWith("cgst")||
+             lower.startsWith("sgst")||lower.startsWith("subtotal")||lower.equals("total")||lower.startsWith("thank you")||
+             lower.startsWith("operator")||lower.startsWith("payment method"))continue;
+          String candidate=(pending+" "+line).trim();String[] parsed=parseBillRow(candidate);
+          if(parsed!=null){
+            String name=canonicalBillItem(parsed[0]);double qty=num(parsed[1]),total=num(parsed[2]);
+            if(!name.isEmpty()&&qty>0&&total>=0)rows.append(name).append(" | ").append(parsed[1]).append(" | ").append(billUnit(name,parsed[0])).append(" | ").append(String.format(Locale.US,"%.2f",total)).append("\n");
+            pending="";continue;
+          }
+          if(!line.matches("^[0-9\\s.,%₹]+$")&&!lower.matches(".*\\b\\d{6,}\\b.*"))pending=candidate;
+        }
       }
       return rows.toString().trim();
     }
