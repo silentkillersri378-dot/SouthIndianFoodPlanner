@@ -434,12 +434,23 @@ public class MainActivity extends Activity {
     }
         void scanGroceryBill(){
       Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);pick.addCategory(Intent.CATEGORY_OPENABLE);pick.setType("image/*");
-      pick.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"image/jpeg","image/png","image/webp"});startActivityForResult(pick,REQ_BILL_SCAN);
+      pick.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"image/jpeg","image/png","image/webp","image/heic","image/heif","image/heic-sequence","image/heif-sequence"});startActivityForResult(pick,REQ_BILL_SCAN);
     }
     void processBillUri(android.net.Uri uri){
       Toast.makeText(this,"Reading bill…",Toast.LENGTH_SHORT).show();
       Executors.newSingleThreadExecutor().execute(()->{
-        try{com.google.mlkit.vision.text.Text t=Tasks.await(TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(InputImage.fromFilePath(this,uri)));
+        try{android.graphics.Bitmap bitmap;
+          if(android.os.Build.VERSION.SDK_INT>=28){
+            android.graphics.ImageDecoder.Source source=android.graphics.ImageDecoder.createSource(getContentResolver(),uri);
+            bitmap=android.graphics.ImageDecoder.decodeBitmap(source);
+          }else{
+            android.graphics.BitmapFactory.Options opts=new android.graphics.BitmapFactory.Options();opts.inPreferredConfig=android.graphics.Bitmap.Config.ARGB_8888;
+            java.io.InputStream stream=getContentResolver().openInputStream(uri);bitmap=android.graphics.BitmapFactory.decodeStream(stream,null,opts);if(stream!=null)stream.close();
+          }
+          if(bitmap==null)throw new IOException("Unsupported image format. Please choose a JPG or PNG copy.");
+          com.google.mlkit.vision.text.Text t;
+          try{t=Tasks.await(TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(InputImage.fromBitmap(bitmap,0)));}
+          finally{bitmap.recycle();}
           String raw=t.getText();runOnUiThread(()->reviewBillText(raw));
         }catch(Exception e){runOnUiThread(()->new AlertDialog.Builder(this).setTitle("Could not read bill").setMessage("Try a clearer photo. "+e.getMessage()).setPositiveButton("OK",null).show());}
       });
