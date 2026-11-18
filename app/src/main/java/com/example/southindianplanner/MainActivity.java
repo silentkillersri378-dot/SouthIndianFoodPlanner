@@ -27,7 +27,8 @@ public class MainActivity extends Activity {
     SharedPreferences prefs;
     final int green=Color.rgb(35,115,76), ink=Color.rgb(35,45,39), muted=Color.rgb(105,115,108), pale=Color.rgb(250,252,249);
     interface SaveFields { void save(String[] values); }
-    static final int REQ_BACKUP_EXPORT=4101, REQ_BACKUP_IMPORT=4102, REQ_BILL_SCAN=4103;
+    static final int REQ_BACKUP_EXPORT=4101, REQ_BACKUP_IMPORT=4102, REQ_BILL_SCAN=4103, REQ_BILL_CAMERA=4104;
+    android.net.Uri billCameraUri;
 
     final String[][] meals={
       {"Idli + sambar","Rice + keerai kootu + carrot poriyal","Dosa + egg omelette"},
@@ -322,7 +323,9 @@ public class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
       super.onActivityResult(requestCode,resultCode,data);
-      if(resultCode!=RESULT_OK||data==null||data.getData()==null)return;
+      if(resultCode!=RESULT_OK)return;
+      if(requestCode==REQ_BILL_CAMERA){if(billCameraUri!=null)processBillUri(billCameraUri);else Toast.makeText(this,"Camera did not return a photo.",Toast.LENGTH_LONG).show();return;}
+      if(data==null||data.getData()==null)return;
       if(requestCode==REQ_BILL_SCAN){processBillUri(data.getData());return;}
       if(requestCode==REQ_BACKUP_EXPORT){
         try(OutputStream out=getContentResolver().openOutputStream(data.getData())){
@@ -433,44 +436,67 @@ public class MainActivity extends Activity {
       new AlertDialog.Builder(this).setTitle("Purchase history").setMessage(s.toString()).setPositiveButton("Close",null).show();
     }
         void scanGroceryBill(){
-      Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);pick.addCategory(Intent.CATEGORY_OPENABLE);pick.setType("image/*");
-      pick.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"image/jpeg","image/png","image/webp","image/heic","image/heif","image/heic-sequence","image/heif-sequence"});startActivityForResult(pick,REQ_BILL_SCAN);
+      new AlertDialog.Builder(this).setTitle("Scan grocery bill")
+        .setItems(new String[]{"Take a photo with camera","Choose photo or PDF invoice"},(d,which)->{if(which==0)takeBillPhoto();else chooseBillFile();}).show();
+    }
+    void takeBillPhoto(){
+      try{
+        android.content.ContentValues values=new android.content.ContentValues();
+        values.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME,"NSV_bill_"+System.currentTimeMillis()+".jpg");
+        values.put(android.provider.MediaStore.Images.Media.MIME_TYPE,"image/jpeg");
+        if(Build.VERSION.SDK_INT>=29)values.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH,"Pictures/NSV Bills");
+        billCameraUri=getContentResolver().insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values);
+        if(billCameraUri==null)throw new IOException("Could not prepare a photo location");
+        Intent camera=new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);camera.putExtra(android.provider.MediaStore.EXTRA_OUTPUT,billCameraUri);
+        camera.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION|Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        if(camera.resolveActivity(getPackageManager())==null)throw new IOException("No camera app is available");
+        startActivityForResult(camera,REQ_BILL_CAMERA);
+      }catch(Exception e){Toast.makeText(this,"Could not open camera: "+e.getMessage(),Toast.LENGTH_LONG).show();}
+    }
+    void chooseBillFile(){
+      Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);pick.addCategory(Intent.CATEGORY_OPENABLE);pick.setType("*/*");
+      pick.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"image/jpeg","image/png","image/webp","image/heic","image/heif","image/heic-sequence","image/heif-sequence","application/pdf"});
+      startActivityForResult(pick,REQ_BILL_SCAN);
     }
     void processBillUri(android.net.Uri uri){
       Toast.makeText(this,"Reading bill…",Toast.LENGTH_SHORT).show();
       Executors.newSingleThreadExecutor().execute(()->{
-        try{android.graphics.Bitmap bitmap;
-          if(android.os.Build.VERSION.SDK_INT>=28){
-            android.graphics.ImageDecoder.Source source=android.graphics.ImageDecoder.createSource(getContentResolver(),uri);
-            bitmap=android.graphics.ImageDecoder.decodeBitmap(source);
+        try{
+          String mime=getContentResolver().getType(uri);StringBuilder allText=new StringBuilder();
+          if("application/pdf".equalsIgnoreCase(mime)||uri.toString().toLowerCase(Locale.US).endsWith(".pdf")){
+            android.os.ParcelFileDescriptor fd=getContentResolver().openFileDescriptor(uri,"r");
+            if(fd==null)throw new IOException("Cannot open this PDF invoice");
+            android.graphics.pdf.PdfRenderer renderer=new android.graphics.pdf.PdfRenderer(fd);
+            try{for(int pageNo=0;pageNo<renderer.getPageCount();pageNo++){
+              android.graphics.pdf.PdfRenderer.Page page=renderer.openPage(pageNo);
+              android.graphics.Bitmap bm=android.graphics.Bitmap.createBitmap(page.getWidth()*2,page.getHeight()*2,android.graphics.Bitmap.Config.ARGB_8888);
+              try{page.render(bm,null,null,android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                com.google.mlkit.vision.text.Text result=Tasks.await(TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(InputImage.fromBitmap(bm,0)));
+                allText.append("\\n--- PDF PAGE ").append(pageNo+1).append(" ---\\n").append(result.getText()).append("\\n");
+              }finally{bm.recycle();page.close();}
+            }}finally{renderer.close();fd.close();}
           }else{
-            android.graphics.BitmapFactory.Options opts=new android.graphics.BitmapFactory.Options();opts.inPreferredConfig=android.graphics.Bitmap.Config.ARGB_8888;
-            java.io.InputStream stream=getContentResolver().openInputStream(uri);bitmap=android.graphics.BitmapFactory.decodeStream(stream,null,opts);if(stream!=null)stream.close();
+            android.graphics.Bitmap bitmap;
+            if(Build.VERSION.SDK_INT>=28){android.graphics.ImageDecoder.Source source=android.graphics.ImageDecoder.createSource(getContentResolver(),uri);bitmap=android.graphics.ImageDecoder.decodeBitmap(source);}
+            else{android.graphics.BitmapFactory.Options opts=new android.graphics.BitmapFactory.Options();opts.inPreferredConfig=android.graphics.Bitmap.Config.ARGB_8888;java.io.InputStream stream=getContentResolver().openInputStream(uri);bitmap=android.graphics.BitmapFactory.decodeStream(stream,null,opts);if(stream!=null)stream.close();}
+            if(bitmap==null)throw new IOException("Unsupported image format. Please choose a JPG or PNG copy.");
+            try{com.google.mlkit.vision.text.Text result=Tasks.await(TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(InputImage.fromBitmap(bitmap,0)));allText.append(result.getText());}finally{bitmap.recycle();}
           }
-          if(bitmap==null)throw new IOException("Unsupported image format. Please choose a JPG or PNG copy.");
-          com.google.mlkit.vision.text.Text t;
-          try{t=Tasks.await(TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(InputImage.fromBitmap(bitmap,0)));}
-          finally{bitmap.recycle();}
-          String raw=t.getText();runOnUiThread(()->reviewBillText(raw));
-        }catch(Exception e){runOnUiThread(()->new AlertDialog.Builder(this).setTitle("Could not read bill").setMessage("Try a clearer photo. "+e.getMessage()).setPositiveButton("OK",null).show());}
+          String raw=allText.toString().trim();if(raw.isEmpty())throw new IOException("No readable text found. Try a sharper, well-lit photo or a text-based PDF.");
+          runOnUiThread(()->reviewBillText(raw));
+        }catch(Exception e){runOnUiThread(()->new AlertDialog.Builder(this).setTitle("Could not read bill").setMessage("Try a clearer photo or a text-based PDF. Handwritten text may need manual correction. "+e.getMessage()).setPositiveButton("OK",null).show());}
       });
     }
     void reviewBillText(String raw){
       LinearLayout box=col();box.setPadding(12,4,12,4);
-      box.addView(text("Review and edit before saving. Format: Item | Quantity | Unit | Line total. Example: Onion | 2 | kg | 80",13,muted,false));
+      box.addView(text("Check every line before saving. Enter one item per line as: Item | Quantity | Unit | Line total. Example: Onion | 2 | kg | 80. OCR can misread quantities, handwritten text and prices.",13,muted,false));
       EditText edit=new EditText(this);edit.setGravity(Gravity.TOP);edit.setMinLines(10);edit.setTextSize(14);
-      StringBuilder rows=new StringBuilder();
-      for(String line:raw.split("\\r?\\n")){String s=line.trim().replaceAll("\\s+"," ");if(s.length()<3)continue;String[] words=s.split(" ");String amount=words[words.length-1].replace(",","");
-        try{Double.parseDouble(amount);String name=s.substring(0,s.lastIndexOf(words[words.length-1])).trim();
-          if(name.length()>1&&!name.toLowerCase(Locale.US).contains("total")&&!name.toLowerCase(Locale.US).contains("gst"))rows.append(name).append(" | 1 | item | ").append(amount).append("\\n");
-        }catch(Exception ignored){}
-      }
-      edit.setText(rows.length()>0?rows.toString():raw);box.addView(edit);ScrollView sc=new ScrollView(this);sc.addView(box);
+      edit.setText(raw);box.addView(edit);ScrollView sc=new ScrollView(this);sc.addView(box);
       new AlertDialog.Builder(this).setTitle("Review scanned bill").setView(sc).setNegativeButton("Cancel",null).
         setPositiveButton("Save purchases",(d,w)->saveBillLines(edit.getText().toString())).show();
     }
     void saveBillLines(String content){
-      int saved=0;for(String line:content.split("\\r?\\n")){String[] p=line.split("\\\\|");if(p.length<4)continue;
+      int saved=0;for(String line:content.split("\\r?\\n")){String[] p=line.split("\\|");if(p.length<4)continue;
         String name=p[0].trim(),unit=p[2].trim();double qty=num(p[1].trim()),total=num(p[3].trim());if(name.isEmpty()||unit.isEmpty()||qty<=0||p[3].trim().isEmpty()||total<0)continue;
         String id=key(name);JSONArray h=purchases(id);JSONObject o=new JSONObject();
         try{o.put("date",new SimpleDateFormat("yyyy-MM-dd",Locale.US).format(new Date()));o.put("qty",qty);o.put("unit",unit);o.put("total",total);o.put("unitPrice",total/qty);o.put("source","bill_scan");h.put(o);prefs.edit().putString("purchases_"+id,h.toString()).putString("stock_"+id,"available").apply();saved++;}catch(Exception ignored){}
