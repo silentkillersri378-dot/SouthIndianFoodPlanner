@@ -428,12 +428,41 @@ public class MainActivity extends Activity {
       return sum;
     }
     void showHistory(){
-      StringBuilder s=new StringBuilder();String month=new SimpleDateFormat("yyyy-MM",Locale.US).format(new Date());
-      for(Map.Entry<String,?> en:prefs.getAll().entrySet())if(en.getKey().startsWith("purchases_")){
-        try{JSONArray a=new JSONArray(String.valueOf(en.getValue()));for(int i=a.length()-1;i>=0;i--){JSONObject o=a.getJSONObject(i);s.append(en.getKey().substring(10).replace('_',' ')).append(" • ").append(o.optString("date")).append(" • ").append(o.optDouble("qty")).append(" ").append(o.optString("unit")).append(" • ").append(money(o.optDouble("total"))).append("\n");}}catch(Exception ignored){}
+      LinearLayout list=col();list.setPadding(12,8,12,8);int count=0;
+      ArrayList<String> keys=new ArrayList<>();
+      for(Map.Entry<String,?> en:prefs.getAll().entrySet())if(en.getKey().startsWith("purchases_"))keys.add(en.getKey());
+      Collections.sort(keys);
+      for(String prefKey:keys){
+        try{
+          JSONArray a=new JSONArray(prefs.getString(prefKey,"[]"));String item=prefKey.substring(10).replace('_',' ');
+          for(int i=a.length()-1;i>=0;i--){
+            final int index=i;final String purchaseKey=prefKey;JSONObject o=a.getJSONObject(i);
+            LinearLayout row=col();row.setPadding(8,8,8,8);
+            row.addView(text(item+" • "+o.optString("date")+"\\n"+o.optDouble("qty")+" "+o.optString("unit")+" • "+money(o.optDouble("total")),14,ink,true));
+            Button remove=new Button(this);remove.setText("Remove purchase");remove.setAllCaps(false);row.addView(remove);
+            remove.setOnClickListener(v->confirmRemovePurchase(purchaseKey,index,item));
+            list.addView(row);View divider=new View(this);divider.setBackgroundColor(Color.LTGRAY);list.addView(divider);count++;
+          }
+        }catch(Exception ignored){}
       }
-      if(s.length()==0)s.append("No purchases recorded yet.");
-      new AlertDialog.Builder(this).setTitle("Purchase history").setMessage(s.toString()).setPositiveButton("Close",null).show();
+      if(count==0)list.addView(text("No purchases recorded yet.",14,muted,false));
+      ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(list);
+      new AlertDialog.Builder(this).setTitle("Purchase history • "+count+" entries").setView(scroll).setPositiveButton("Close",null).show();
+    }
+    void confirmRemovePurchase(String prefKey,int index,String item){
+      new AlertDialog.Builder(this).setTitle("Remove purchase?")
+        .setMessage("Delete this "+item+" purchase from history? Monthly spending and price history will be recalculated.")
+        .setNegativeButton("Cancel",null).setPositiveButton("Remove",(d,w)->removePurchase(prefKey,index,item)).show();
+    }
+    void removePurchase(String prefKey,int index,String item){
+      JSONArray old=purchases(prefKey.substring(10));JSONArray updated=new JSONArray();
+      for(int i=0;i<old.length();i++)if(i!=index)updated.put(old.opt(i));
+      SharedPreferences.Editor editor=prefs.edit().putString(prefKey,updated.toString());
+      String id=prefKey.substring(10);
+      if(updated.length()==0)editor.putBoolean("have_"+id,false).putString("stock_"+id,"finished");
+      editor.apply();
+      Toast.makeText(this,"Purchase removed. Spending totals updated.",Toast.LENGTH_SHORT).show();
+      showHistory();draw();
     }
         void scanGroceryBill(){
       new AlertDialog.Builder(this).setTitle("Scan grocery bill")
@@ -541,13 +570,24 @@ public class MainActivity extends Activity {
     }
     String canonicalBillItem(String rawName){
       String n=rawName.toLowerCase(Locale.US).replaceAll("[^a-z0-9 ]"," ").replaceAll("\\s+"," ").trim();
-      if(n.contains("carrot"))return "Carrot";
-      if(n.contains("nandini")&&(n.contains("milk")||n.contains("standard")))return "Milk";
-      if(n.equals("milk")||n.contains("standard milk"))return "Milk";
-      if(n.contains("chana"))return "Chana dal";
-      if(n.contains("coconut"))return "Coconut";
-      if(n.contains("pineapple"))return "Pineapple";
-      return rawName.trim().replaceAll("\\s+"," ");
+      String compact=n.replace(" ","");
+      // Conservative corrections for common grocery OCR mistakes.
+      if(n.contains("carrot")||compact.contains("carot")||compact.contains("car0t"))return "Carrot";
+      if(n.contains("nandini")||n.contains("nandin")||n.contains("standard milk")||n.equals("milk")||n.contains("milk 500"))return "Milk";
+      if(n.contains("chana")||n.contains("channa")||compact.contains("chanadal"))return "Chana dal";
+      if(n.contains("coconut")||compact.contains("cocnut"))return "Coconut";
+      if(n.contains("pineapple")||n.contains("pine apple")||compact.contains("pineappl"))return "Pineapple";
+      if(n.contains("beetroot")||compact.contains("beetrot"))return "Beetroot";
+      if(n.contains("tomato")||compact.contains("tom ato"))return "Tomato";
+      if(n.contains("onion")||compact.contains("onoin"))return "Onion";
+      String cleaned=rawName.trim().replaceAll("\\s+"," ");
+      if(cleaned.isEmpty())return cleaned;
+      return cleaned.substring(0,1).toUpperCase(Locale.US)+cleaned.substring(1);
+    }
+    String billSignature(String raw){
+      String prepared=prepareBillRows(raw);
+      String basis=(prepared.isEmpty()?raw:prepared).toLowerCase(Locale.US).replaceAll("[^a-z0-9]","");
+      return Integer.toHexString(basis.hashCode())+"_"+basis.length();
     }
     String billUnit(String name,String rawName){
       String n=(name+" "+rawName).toLowerCase(Locale.US);
@@ -659,15 +699,20 @@ public class MainActivity extends Activity {
     }
     void reviewBillText(String raw){
       String prepared=prepareBillRows(raw);
+      String signature=billSignature(raw);
+      boolean duplicate=prefs.getBoolean("bill_scanned_"+signature,false);
       LinearLayout box=col();box.setPadding(12,4,12,4);
-      box.addView(text(prepared.isEmpty()?"Receipt items could not be separated automatically. Enter each item as: Item | Quantity | Unit | Line total.":"Items detected from the receipt. Check every quantity and printed line total before saving.",13,muted,false));
+      String guidance=prepared.isEmpty()?"Receipt items could not be separated automatically. Enter each item as: Item | Quantity | Unit | Line total.":"Items detected from the receipt. Check names, quantities and printed line totals before saving.";
+      if(duplicate)guidance="⚠ This bill looks like one you already scanned. Saving again will create duplicate purchases. Review carefully.";
+      box.addView(text(guidance,13,duplicate?Color.rgb(180,95,20):muted,false));
       EditText edit=new EditText(this);edit.setGravity(Gravity.TOP);edit.setMinLines(10);edit.setTextSize(14);
       edit.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
       edit.setText(prepared.isEmpty()?raw:prepared);box.addView(edit);ScrollView sc=new ScrollView(this);sc.addView(box);
-      new AlertDialog.Builder(this).setTitle("Review scanned bill").setView(sc).setNegativeButton("Cancel",null).
-        setPositiveButton("Save purchases",(d,w)->saveBillLines(edit.getText().toString())).show();
+      new AlertDialog.Builder(this).setTitle(duplicate?"Possible duplicate bill":"Review scanned bill").setView(sc).setNegativeButton("Cancel",null).
+        setPositiveButton(duplicate?"Save anyway":"Save purchases",(d,w)->saveBillLines(edit.getText().toString(),signature)).show();
     }
-    void saveBillLines(String content){
+    void saveBillLines(String content){saveBillLines(content,null);}
+    void saveBillLines(String content,String signature){
       String normalized=content.contains("|")?content:prepareBillRows(content);
       int saved=0,skipped=0;SharedPreferences.Editor editor=prefs.edit();
       for(String line:normalized.split("\\r?\\n")){
@@ -686,7 +731,10 @@ public class MainActivity extends Activity {
           saved++;
         }catch(Exception e){skipped++;}
       }
-      if(saved>0)editor.apply();
+      if(saved>0){
+        if(signature!=null&&!signature.isEmpty())editor.putBoolean("bill_scanned_"+signature,true);
+        editor.apply();
+      }
       String message=saved+" item(s) saved to purchase history, price history and stock.";
       if(skipped>0)message+=" "+skipped+" line(s) skipped; check the item format.";
       if(saved==0)message="0 items saved. No valid item rows found. Use: Item | Quantity | Unit | Line total.";
