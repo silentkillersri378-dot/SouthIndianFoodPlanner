@@ -449,6 +449,7 @@ public class MainActivity extends Activity {
       Button start=new Button(this);start.setAllCaps(false);start.setText(String.format(Locale.US,"Month-start report time: %02d:%02d",sh,sm));c.addView(start);
       start.setOnClickListener(v->new TimePickerDialog(this,(tp,h,m)->{prefs.edit().putInt("month_start_hour",h).putInt("month_start_min",m).apply();scheduleAllReminders();draw();},sh,sm,false).show());
     }
+    void scheduleMonthlyReports(){ReminderReceiver.scheduleNext(this,"month_end");ReminderReceiver.scheduleNext(this,"month_start");}
     void scheduleAllReminders(){scheduleReminder(true);scheduleReminder(false);scheduleMonthlyReports();}
     void scheduleReminder(boolean morning){
       String prefix=morning?"morning":"evening";int id=morning?100:101;
