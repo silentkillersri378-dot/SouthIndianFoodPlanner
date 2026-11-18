@@ -458,6 +458,33 @@ public class MainActivity extends Activity {
       pick.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"image/jpeg","image/png","image/webp","image/heic","image/heif","image/heic-sequence","image/heif-sequence","application/pdf"});
       startActivityForResult(pick,REQ_BILL_SCAN);
     }
+    String billOcrText(com.google.mlkit.vision.text.Text result){
+      ArrayList<com.google.mlkit.vision.text.Text.Line> lines=new ArrayList<>();
+      for(com.google.mlkit.vision.text.Text.TextBlock block:result.getTextBlocks()) lines.addAll(block.getLines());
+      Collections.sort(lines,(a,b)->{
+        android.graphics.Rect ra=a.getBoundingBox(),rb=b.getBoundingBox();
+        int ya=ra==null?0:(ra.top+ra.bottom)/2, yb=rb==null?0:(rb.top+rb.bottom)/2;
+        if(ya!=yb)return ya-yb; return (ra==null?0:ra.left)-(rb==null?0:rb.left);
+      });
+      ArrayList<ArrayList<com.google.mlkit.vision.text.Text.Line>> rows=new ArrayList<>();
+      for(com.google.mlkit.vision.text.Text.Line line:lines){
+        android.graphics.Rect r=line.getBoundingBox();int cy=r==null?0:(r.top+r.bottom)/2;
+        ArrayList<com.google.mlkit.vision.text.Text.Line> target=null;
+        for(ArrayList<com.google.mlkit.vision.text.Text.Line> row:rows){
+          android.graphics.Rect first=row.get(0).getBoundingBox();int ry=first==null?0:(first.top+first.bottom)/2;
+          if(Math.abs(cy-ry)<=Math.max(12,first==null?12:first.height()/2)){target=row;break;}
+        }
+        if(target==null){target=new ArrayList<>();rows.add(target);}target.add(line);
+      }
+      StringBuilder out=new StringBuilder();
+      for(ArrayList<com.google.mlkit.vision.text.Text.Line> row:rows){
+        Collections.sort(row,(a,b)->{android.graphics.Rect ra=a.getBoundingBox(),rb=b.getBoundingBox();return (ra==null?0:ra.left)-(rb==null?0:rb.left);});
+        StringBuilder text=new StringBuilder();
+        for(com.google.mlkit.vision.text.Text.Line line:row){if(text.length()>0)text.append(" ");text.append(line.getText());}
+        if(text.length()>0)out.append(text).append("\n");
+      }
+      return out.toString().trim();
+    }
     void processBillUri(android.net.Uri uri){
       Toast.makeText(this,"Reading bill…",Toast.LENGTH_SHORT).show();
       Executors.newSingleThreadExecutor().execute(()->{
@@ -472,7 +499,7 @@ public class MainActivity extends Activity {
               android.graphics.Bitmap bm=android.graphics.Bitmap.createBitmap(page.getWidth()*2,page.getHeight()*2,android.graphics.Bitmap.Config.ARGB_8888);
               try{page.render(bm,null,null,android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
                 com.google.mlkit.vision.text.Text result=Tasks.await(TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(InputImage.fromBitmap(bm,0)));
-                allText.append("\\n--- PDF PAGE ").append(pageNo+1).append(" ---\\n").append(result.getText()).append("\\n");
+                allText.append("\n").append(billOcrText(result)).append("\n");
               }finally{bm.recycle();page.close();}
             }}finally{renderer.close();fd.close();}
           }else{
@@ -480,29 +507,52 @@ public class MainActivity extends Activity {
             if(Build.VERSION.SDK_INT>=28){android.graphics.ImageDecoder.Source source=android.graphics.ImageDecoder.createSource(getContentResolver(),uri);bitmap=android.graphics.ImageDecoder.decodeBitmap(source);}
             else{android.graphics.BitmapFactory.Options opts=new android.graphics.BitmapFactory.Options();opts.inPreferredConfig=android.graphics.Bitmap.Config.ARGB_8888;java.io.InputStream stream=getContentResolver().openInputStream(uri);bitmap=android.graphics.BitmapFactory.decodeStream(stream,null,opts);if(stream!=null)stream.close();}
             if(bitmap==null)throw new IOException("Unsupported image format. Please choose a JPG or PNG copy.");
-            try{com.google.mlkit.vision.text.Text result=Tasks.await(TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(InputImage.fromBitmap(bitmap,0)));allText.append(result.getText());}finally{bitmap.recycle();}
+            try{com.google.mlkit.vision.text.Text result=Tasks.await(TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(InputImage.fromBitmap(bitmap,0)));allText.append(billOcrText(result));}finally{bitmap.recycle();}
           }
           String raw=allText.toString().trim();if(raw.isEmpty())throw new IOException("No readable text found. Try a sharper, well-lit photo or a text-based PDF.");
           runOnUiThread(()->reviewBillText(raw));
-        }catch(Exception e){runOnUiThread(()->new AlertDialog.Builder(this).setTitle("Could not read bill").setMessage("Try a clearer photo or a text-based PDF. Handwritten text may need manual correction. "+e.getMessage()).setPositiveButton("OK",null).show());}
+        }catch(Exception e){runOnUiThread(()->new AlertDialog.Builder(this).setTitle("Could not read bill").setMessage("Try a clearer photo or a text-based PDF. "+e.getMessage()).setPositiveButton("OK",null).show());}
       });
+    }
+    String canonicalBillItem(String rawName){
+      String n=rawName.toLowerCase(Locale.US).replaceAll("[^a-z0-9 ]"," ").replaceAll("\\s+"," ").trim();
+      if(n.contains("carrot"))return "Carrot";
+      if(n.contains("nandini")&&n.contains("milk"))return "Milk";
+      if(n.equals("milk")||n.contains("standard milk"))return "Milk";
+      if(n.contains("chana")&&n.contains("dal"))return "Chana dal";
+      if(n.contains("coconut"))return "Coconut";
+      if(n.contains("pineapple"))return "Pineapple";
+      return rawName.trim().replaceAll("\\s+"," ");
+    }
+    String billUnit(String name,String rawName){
+      String n=(name+" "+rawName).toLowerCase(Locale.US);
+      if(n.contains("milk"))return "500 ml";
+      if(n.contains("carrot")||n.contains("chana dal")||n.contains("pineapple")||n.contains("coconut"))return "kg";
+      return "item";
     }
     String prepareBillRows(String raw){
       StringBuilder rows=new StringBuilder();
-      java.util.regex.Pattern p=java.util.regex.Pattern.compile("^\\s*\\d+\\s+(.+?)\\s+(?:-\\s+|[\\d,]+\\.\\d{2}\\s+)?([\\d.]+)\\s+([\\d,]+\\.\\d{2})\\s+\\d+(?:\\.\\d+)?%\\s+([\\d,]+\\.\\d{2})\\s*$");
-      for(String line:raw.split("\\r?\\n")){
-        String clean=line.trim().replaceAll("\\s+"," ");
-        java.util.regex.Matcher m=p.matcher(clean);
+      java.util.regex.Pattern row=java.util.regex.Pattern.compile("^\\s*(?:\\d+\\s+)?(.+?)\\s+(?:[\\d,]+\\.\\d{2}\\s+)?([\\d]+(?:\\.[\\d]+)?)\\s+([\\d,]+\\.\\d{2})\\s+\\d+(?:\\.\\d+)?%\\s+([\\d,]+\\.\\d{2})\\s*$");
+      String pending="";
+      for(String source:raw.split("\\r?\\n")){
+        String line=source.trim().replaceAll("\\s+"," ");if(line.isEmpty())continue;
+        String lower=line.toLowerCase(Locale.US);
+        if(lower.startsWith("hsn")||lower.contains("invoice no")||lower.contains("order no")||lower.contains("gstin")||
+          lower.contains("phone no")||lower.contains("site no")||lower.contains("taxable")||lower.startsWith("cgst")||
+          lower.startsWith("sgst")||lower.startsWith("subtotal")||lower.equals("total")||lower.startsWith("thank you")||
+          lower.startsWith("s.no")||lower.startsWith("items")||lower.startsWith("tax %")||lower.startsWith("operator")||
+          lower.startsWith("payment method")||lower.contains("kpn fresh")||lower.contains("tax invoice"))continue;
+        java.util.regex.Matcher m=row.matcher(line);
+        if(!m.matches()&&!pending.isEmpty()){m=row.matcher(pending+" "+line);}
         if(m.matches()){
-          String name=m.group(1).trim();
-          String qty=m.group(2).replace(",","");
-          String total=m.group(4).replace(",","");
-          String lower=name.toLowerCase(Locale.US);
-          String unit="item";
-          if(lower.contains("milk"))unit="pack";
-          else if(lower.contains("carrot")||lower.contains("chana")||lower.contains("pineapple")||lower.contains("coconut"))unit="kg";
-          rows.append(name).append(" | ").append(qty).append(" | ").append(unit).append(" | ").append(total).append("\n");
+          String original=m.group(1).trim(),name=canonicalBillItem(original);
+          double qty=num(m.group(2).replace(",","")),total=num(m.group(4).replace(",",""));
+          if(!name.isEmpty()&&qty>0&&total>=0)rows.append(name).append(" | ").append(m.group(2)).append(" | ").append(billUnit(name,original)).append(" | ").append(String.format(Locale.US,"%.2f",total)).append("\\n");
+          pending="";continue;
         }
+        if(!lower.matches("^[\\d\\s.,%₹]+$")&&!lower.matches(".*\\b\\d{6,}\\b.*")&&
+          !lower.startsWith("invoice")&&!lower.startsWith("order")&&!lower.startsWith("phone")&&!lower.startsWith("gstin"))
+          pending=(pending+" "+line).trim();
       }
       return rows.toString().trim();
     }
@@ -517,12 +567,29 @@ public class MainActivity extends Activity {
         setPositiveButton("Save purchases",(d,w)->saveBillLines(edit.getText().toString())).show();
     }
     void saveBillLines(String content){
-      int saved=0;for(String line:content.split("\\r?\\n")){String[] p=line.split("\\|");if(p.length<4)continue;
-        String name=p[0].trim(),unit=p[2].trim();double qty=num(p[1].trim()),total=num(p[3].trim());if(name.isEmpty()||unit.isEmpty()||qty<=0||p[3].trim().isEmpty()||total<0)continue;
-        String id=key(name);JSONArray h=purchases(id);JSONObject o=new JSONObject();
-        try{o.put("date",new SimpleDateFormat("yyyy-MM-dd",Locale.US).format(new Date()));o.put("qty",qty);o.put("unit",unit);o.put("total",total);o.put("unitPrice",total/qty);o.put("source","bill_scan");h.put(o);prefs.edit().putString("purchases_"+id,h.toString()).putString("stock_"+id,"available").apply();saved++;}catch(Exception ignored){}
+      String normalized=content.contains("|")?content:prepareBillRows(content);
+      int saved=0,skipped=0;SharedPreferences.Editor editor=prefs.edit();
+      for(String line:normalized.split("\\r?\\n")){
+        String[] p=line.split("\\|",-1);
+        if(p.length<4){if(!line.trim().isEmpty())skipped++;continue;}
+        String original=p[0].trim(),name=canonicalBillItem(original),unit=p[2].trim();
+        double qty=num(p[1].trim().replace(",","")),total=num(p[3].trim().replace(",",""));
+        if(name.isEmpty()||unit.isEmpty()||qty<=0||p[3].trim().isEmpty()||total<0){skipped++;continue;}
+        String id=key(name);JSONArray history=purchases(id);JSONObject purchase=new JSONObject();
+        try{
+          purchase.put("date",new SimpleDateFormat("yyyy-MM-dd",Locale.US).format(new Date()));
+          purchase.put("qty",qty);purchase.put("unit",unit);purchase.put("total",total);
+          purchase.put("unitPrice",total/qty);purchase.put("source","bill_scan");purchase.put("billItemName",original);
+          history.put(purchase);
+          editor.putString("purchases_"+id,history.toString()).putBoolean("have_"+id,true).putString("stock_"+id,"available");
+          saved++;
+        }catch(Exception e){skipped++;}
       }
-      Toast.makeText(this,saved+" item(s) saved to purchase history, price history and stock.",Toast.LENGTH_LONG).show();draw();
+      if(saved>0)editor.apply();
+      String message=saved+" item(s) saved to purchase history, price history and stock.";
+      if(skipped>0)message+=" "+skipped+" line(s) skipped; check the item format.";
+      if(saved==0)message="0 items saved. No valid item rows found. Use: Item | Quantity | Unit | Line total.";
+      Toast.makeText(this,message,Toast.LENGTH_LONG).show();draw();
     }
 void addCustomIngredient(){
       dialogFields("Add grocery item",new String[]{"Ingredient name"},new String[]{""},v->{if(!v[0].trim().isEmpty()){String name=v[0].trim();prefs.edit().putString("custom_item_"+key(name),name).apply();Toast.makeText(this,"Added. You can record a purchase from the shopping checklist.",Toast.LENGTH_SHORT).show();draw();}});
