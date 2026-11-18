@@ -70,7 +70,7 @@ public class MainActivity extends Activity {
       Calendar c=Calendar.getInstance(); c.set(Calendar.DAY_OF_MONTH,1); midnight(c);
       if(!prefs.contains("cycle_start"))prefs.edit().putLong("cycle_start",c.getTimeInMillis()).apply();
       if(!prefs.getBoolean("v3_final_migration",false)){
-        prefs.edit().putString("milk_qty","0.5").putBoolean("morning_enabled",true).putBoolean("evening_enabled",true)
+        prefs.edit().putString("milk_qty","500").putBoolean("morning_enabled",true).putBoolean("evening_enabled",true)
           .putInt("morning_hour",8).putInt("morning_min",0).putInt("evening_hour",19).putInt("evening_min",0)
           .remove("budget").putBoolean("v3_final_migration",true).apply();
       }
@@ -167,7 +167,7 @@ public class MainActivity extends Activity {
     void drawShopping(int day){
       LinkedHashSet<String> list=ingredientsForDay(day);
       card("TODAY • DAY "+(day+1),mealText(day));
-      card("ONE COMBINED SHOPPING CHECKLIST","Ingredients for breakfast, lunch and dinner are combined below. Tick items you already have at home. Buy only what remains unchecked. Milk requirement: 500 ml today.");
+      card("ONE COMBINED SHOPPING CHECKLIST","Ingredients for breakfast, lunch and dinner are combined below. Tick items you already have at home. Buy only what remains unchecked. Milk requirement: "+prefs.getString("milk_qty","500")+" ml today.");
       button("Edit today's ingredient list",()->editDayIngredients(day));
       for(String item:list){
         final String id=key(item);
@@ -177,7 +177,7 @@ public class MainActivity extends Activity {
         Button buy=new Button(this);buy.setText("I bought this • Enter quantity & price");buy.setAllCaps(false);c.addView(buy);buy.setOnClickListener(v->recordPurchase(item));
       }
       card("MONTHLY SPENDING","Actual purchases this month: "+money(monthSpend())+"\nRice is recorded only in the month you buy it (for example, your occasional ₹1,500 purchase). No automatic monthly rice charge.");
-      button("View all purchase history",()->showHistory());
+      button("View monthly spending history",()->showMonthlyHistory());\n      button("View all purchase history",()->showHistory());
       button("Add another grocery item",()->addCustomIngredient());
     }
 
@@ -235,7 +235,7 @@ public class MainActivity extends Activity {
     }
 
     void editDayIngredients(int day){
-      String current=prefs.getString("day_ingredients_"+day,String.join(", ",ingredientsForDayDefault(day)));
+      String current=prefs.getString("day_ingredients_"+day,joinItems(ingredientsForDayDefault(day)));
       dialogFields("Edit Day "+(day+1)+" ingredients",new String[]{"Ingredients (separate with commas)"},new String[]{current},v->{
         prefs.edit().putString("day_ingredients_"+day,v[0]).apply();draw();
       });
@@ -255,7 +255,7 @@ public class MainActivity extends Activity {
     void drawSettings(){
       card("PLAN START DATE","Current start date: "+date(prefs.getLong("cycle_start",System.currentTimeMillis()))+"\nThe calendar uses the real phone date. Set the start date to the first day of your plan.");
       button("Change 30-day plan start date",()->pickStartDate());
-      card("DAILY MILK","Daily requirement: 500 ml. Actual milk purchases are entered in Shopping and counted only when you buy them.");
+      card("DAILY MILK","Daily requirement: "+prefs.getString("milk_qty","500")+" ml. Actual milk purchases are entered in Shopping and counted only when you buy them.");
       button("Change daily milk requirement",()->dialogFields("Daily milk requirement",new String[]{"Millilitres per day"},new String[]{prefs.getString("milk_qty","500")},v->{double ml=num(v[0]);if(ml>0)prefs.edit().putString("milk_qty",String.valueOf(ml)).apply();draw();}));
       double spent=monthSpend();
       card("MONTHLY GROCERY BUDGET","First month: tracking your actual purchases before setting a budget.\nSpent this month: "+money(spent)+(prefs.contains("budget")?"\nCurrent budget: "+money(num(prefs.getString("budget","0"))):"\nNo budget set yet."));
@@ -305,11 +305,24 @@ public class MainActivity extends Activity {
         double q=num(v[0]),total=num(v[2]);if(q<=0||total<0||v[1].trim().isEmpty()){Toast.makeText(this,"Enter a valid quantity, unit and price.",Toast.LENGTH_LONG).show();return;}
         String id=key(item);JSONArray a=purchases(id);JSONObject o=new JSONObject();
         try{o.put("date",new SimpleDateFormat("yyyy-MM-dd",Locale.US).format(new Date()));o.put("qty",q);o.put("unit",v[1].trim());o.put("total",total);o.put("unitPrice",total/q);a.put(o);
-          prefs.edit().putString("purchases_"+id,a.toString()).putBoolean("have_"+dayFor(Calendar.getInstance())+"_"+id,true).apply();
+          prefs.edit().putString("purchases_"+id,a.toString()).putBoolean("have_"+id,true).apply();
           Toast.makeText(this,"Purchase saved. Price history updated.",Toast.LENGTH_SHORT).show();draw();
         }catch(Exception e){Toast.makeText(this,"Could not save purchase.",Toast.LENGTH_SHORT).show();}
       });
     }
+    String joinItems(Collection<String> items){StringBuilder b=new StringBuilder();for(String x:items){if(b.length()>0)b.append(", ");b.append(x);}return b.toString();}
+    Map<String,Double> monthTotals(){
+      Map<String,Double> totals=new TreeMap<>();
+      for(Map.Entry<String,?> en:prefs.getAll().entrySet())if(en.getKey().startsWith("purchases_")){
+        try{JSONArray a=new JSONArray(String.valueOf(en.getValue()));for(int i=0;i<a.length();i++){JSONObject o=a.getJSONObject(i);String m=o.optString("date");if(m.length()>=7){m=m.substring(0,7);totals.put(m,totals.getOrDefault(m,0.0)+o.optDouble("total",0));}}}catch(Exception ignored){}
+      }
+      return totals;
+    }
+    String monthHistorySummary(){
+      Map<String,Double> totals=monthTotals();if(totals.isEmpty())return "No completed purchase months yet.";
+      StringBuilder b=new StringBuilder();for(Map.Entry<String,Double> e:totals.entrySet())b.append(e.getKey()).append(": ").append(money(e.getValue())).append("\\n");return b.toString().trim();
+    }
+    void showMonthlyHistory(){new AlertDialog.Builder(this).setTitle("Monthly grocery spending").setMessage(monthHistorySummary()).setPositiveButton("Close",null).show();}
     double monthSpend(){
       String month=new SimpleDateFormat("yyyy-MM",Locale.US).format(new Date());double sum=0;
       for(Map.Entry<String,?> en:prefs.getAll().entrySet())if(en.getKey().startsWith("purchases_")){
