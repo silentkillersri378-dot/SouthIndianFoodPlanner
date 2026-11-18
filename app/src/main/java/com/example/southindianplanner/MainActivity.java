@@ -487,11 +487,32 @@ public class MainActivity extends Activity {
         }catch(Exception e){runOnUiThread(()->new AlertDialog.Builder(this).setTitle("Could not read bill").setMessage("Try a clearer photo or a text-based PDF. Handwritten text may need manual correction. "+e.getMessage()).setPositiveButton("OK",null).show());}
       });
     }
+    String prepareBillRows(String raw){
+      StringBuilder rows=new StringBuilder();
+      java.util.regex.Pattern p=java.util.regex.Pattern.compile("^\\s*\\d+\\s+(.+?)\\s+(?:-\\s+|[\\d,]+\\.\\d{2}\\s+)?([\\d.]+)\\s+([\\d,]+\\.\\d{2})\\s+\\d+(?:\\.\\d+)?%\\s+([\\d,]+\\.\\d{2})\\s*$");
+      for(String line:raw.split("\\r?\\n")){
+        String clean=line.trim().replaceAll("\\s+"," ");
+        java.util.regex.Matcher m=p.matcher(clean);
+        if(m.matches()){
+          String name=m.group(1).trim();
+          String qty=m.group(2).replace(",","");
+          String total=m.group(4).replace(",","");
+          String lower=name.toLowerCase(Locale.US);
+          String unit="item";
+          if(lower.contains("milk"))unit="pack";
+          else if(lower.contains("carrot")||lower.contains("chana")||lower.contains("pineapple")||lower.contains("coconut"))unit="kg";
+          rows.append(name).append(" | ").append(qty).append(" | ").append(unit).append(" | ").append(total).append("\n");
+        }
+      }
+      return rows.toString().trim();
+    }
     void reviewBillText(String raw){
+      String prepared=prepareBillRows(raw);
       LinearLayout box=col();box.setPadding(12,4,12,4);
-      box.addView(text("Check every line before saving. Enter one item per line as: Item | Quantity | Unit | Line total. Example: Onion | 2 | kg | 80. OCR can misread quantities, handwritten text and prices.",13,muted,false));
+      box.addView(text(prepared.isEmpty()?"Receipt items could not be separated automatically. Enter each item as: Item | Quantity | Unit | Line total.":"Items detected from the receipt. Check every quantity and printed line total before saving.",13,muted,false));
       EditText edit=new EditText(this);edit.setGravity(Gravity.TOP);edit.setMinLines(10);edit.setTextSize(14);
-      edit.setText(raw);box.addView(edit);ScrollView sc=new ScrollView(this);sc.addView(box);
+      edit.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+      edit.setText(prepared.isEmpty()?raw:prepared);box.addView(edit);ScrollView sc=new ScrollView(this);sc.addView(box);
       new AlertDialog.Builder(this).setTitle("Review scanned bill").setView(sc).setNegativeButton("Cancel",null).
         setPositiveButton("Save purchases",(d,w)->saveBillLines(edit.getText().toString())).show();
     }
