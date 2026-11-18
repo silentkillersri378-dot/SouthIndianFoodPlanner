@@ -204,7 +204,7 @@ public class MainActivity extends Activity {
         else add(s,"Rice","Onion","Tomato","Cooking oil","Salt");
         return;
       }
-      if(m.contains("rice")||m.contains("pulao")||m.contains("bisibele")||m.contains("poha"))add(s,"Rice");
+      if(m.contains("rice")||m.contains("pulao")||m.contains("bisibele"))add(s,"Rice");
       if(m.contains("idli")||m.contains("dosa")||m.contains("uthappam"))add(s,"Idli/dosa batter or rice + urad dal","Cooking oil");
       if(m.contains("poha"))add(s,"Poha","Onion","Potato","Peanuts","Green chilli","Lemon","Curry leaves");
       if(m.contains("lemon rice"))add(s,"Lemon","Peanuts","Urad dal","Chana dal","Curry leaves","Mustard seeds","Turmeric powder");
@@ -245,7 +245,7 @@ public class MainActivity extends Activity {
     LinkedHashSet<String> ingredientsForDayDefault(int d){
       String old=prefs.getString("day_ingredients_"+d,null);
       if(old!=null){LinkedHashSet<String>x=new LinkedHashSet<>();for(String a:old.split(","))x.add(a.trim());return x;}
-      LinkedHashSet<String> x=new LinkedHashSet<>();for(String m:meals[d])mapDishIngredients(m,x);x.add("Milk (daily 500 ml)");return x;
+      LinkedHashSet<String> x=new LinkedHashSet<>();for(String m:meals[d])mapDishIngredients(m,x);x.add("Milk");return x;
     }
 
     void editMeal(int d){
@@ -324,7 +324,16 @@ public class MainActivity extends Activity {
       Map<String,Double> totals=monthTotals();if(totals.isEmpty())return "No completed purchase months yet.";
       StringBuilder b=new StringBuilder();for(Map.Entry<String,Double> e:totals.entrySet())b.append(e.getKey()).append(": ").append(money(e.getValue())).append("\n");return b.toString().trim();
     }
-    void showMonthlyHistory(){new AlertDialog.Builder(this).setTitle("Monthly grocery spending").setMessage(monthHistorySummary()).setPositiveButton("Close",null).show();}
+    String ingredientMonthSummary(){
+      String month=new SimpleDateFormat("yyyy-MM",Locale.US).format(new Date());
+      TreeMap<String,Double> totals=new TreeMap<>();
+      for(Map.Entry<String,?> en:prefs.getAll().entrySet())if(en.getKey().startsWith("purchases_")){
+        try{JSONArray a=new JSONArray(String.valueOf(en.getValue()));for(int i=0;i<a.length();i++){JSONObject o=a.getJSONObject(i);if(o.optString("date").startsWith(month)){String name=en.getKey().substring(10).replace("_"," ");totals.put(name,totals.getOrDefault(name,0.0)+o.optDouble("total",0));}}}catch(Exception ignored){}
+      }
+      if(totals.isEmpty())return "No purchases recorded this month.";
+      StringBuilder b=new StringBuilder();for(Map.Entry<String,Double> e:totals.entrySet())b.append(e.getKey()).append(": ").append(money(e.getValue())).append("\n");return b.toString().trim();
+    }
+    void showMonthlyHistory(){new AlertDialog.Builder(this).setTitle("Monthly grocery spending").setMessage("Month totals:\n"+monthHistorySummary()+"\n\nThis month's ingredient expenses:\n"+ingredientMonthSummary()).setPositiveButton("Close",null).show();}
     double monthSpend(){
       String month=new SimpleDateFormat("yyyy-MM",Locale.US).format(new Date());double sum=0;
       for(Map.Entry<String,?> en:prefs.getAll().entrySet())if(en.getKey().startsWith("purchases_")){
