@@ -575,6 +575,12 @@ public class MainActivity extends Activity {
       String name=String.join(" ",t).trim();if(name.isEmpty())return null;
       return new String[]{name,billCleanNumber(quantity),billCleanNumber(total)};
     }
+    boolean isLikelyBillItemStart(String line){
+      if(line==null||!line.matches(".*[A-Za-z].*"))return false;
+      java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?<![A-Za-z])\\d+[,.]\\d{1,3}(?![A-Za-z])").matcher(line);
+      int count=0;while(m.find())count++;
+      return count>=2;
+    }
     String[] parseNumberedBillRow(String source){
       String[] parts=source.split("\\r?\\n");
       if(parts.length==0)return null;
@@ -617,7 +623,7 @@ public class MainActivity extends Activity {
           lower.contains("site no")||lower.contains("taxable")||lower.startsWith("cgst")||lower.startsWith("sgst")||lower.startsWith("subtotal")||
           lower.equals("total")||lower.startsWith("thank you")||lower.startsWith("s.no")||lower.startsWith("items")||lower.startsWith("tax %")||
           lower.startsWith("operator")||lower.startsWith("payment method")||lower.contains("kpn fresh")||lower.contains("tax invoice"))continue;
-        if(line.matches("^\\d{1,2}\\s+.*")){
+        if(line.matches("^\\d{1,2}\\s+.*")||isLikelyBillItemStart(line)){
           if(current.length()>0)numbered.add(current.toString());
           current.setLength(0);current.append(line);
         }else if(current.length()>0){
