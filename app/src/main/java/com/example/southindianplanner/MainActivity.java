@@ -606,7 +606,7 @@ public class MainActivity extends Activity {
       return new String[]{name.toString().trim(),String.format(Locale.US,"%.3f",quantity),String.format(Locale.US,"%.2f",total)};
     }
     String prepareBillRows(String raw){
-      String normalized=(raw==null?"":raw).replace("\\\\n","\n").replace("\\\\r","\r").replace('\r','\n');
+      String normalized=(raw==null?"":raw).replace("\\n","\n").replace("\\r","\r").replace('\r','\n');
       StringBuilder rows=new StringBuilder();
       ArrayList<String> numbered=new ArrayList<>();
       StringBuilder current=new StringBuilder();
