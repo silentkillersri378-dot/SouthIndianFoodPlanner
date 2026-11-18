@@ -542,9 +542,9 @@ public class MainActivity extends Activity {
     String canonicalBillItem(String rawName){
       String n=rawName.toLowerCase(Locale.US).replaceAll("[^a-z0-9 ]"," ").replaceAll("\\s+"," ").trim();
       if(n.contains("carrot"))return "Carrot";
-      if(n.contains("nandini")&&n.contains("milk"))return "Milk";
+      if(n.contains("nandini")&&(n.contains("milk")||n.contains("standard")))return "Milk";
       if(n.equals("milk")||n.contains("standard milk"))return "Milk";
-      if(n.contains("chana")&&n.contains("dal"))return "Chana dal";
+      if(n.contains("chana"))return "Chana dal";
       if(n.contains("coconut"))return "Coconut";
       if(n.contains("pineapple"))return "Pineapple";
       return rawName.trim().replaceAll("\\s+"," ");
