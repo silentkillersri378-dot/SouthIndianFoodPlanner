@@ -14,6 +14,11 @@ import java.util.*;
 import java.text.SimpleDateFormat;
 import java.io.*;
 import org.json.*;
+import com.google.mlkit.vision.text.TextRecognition;
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
+import com.google.mlkit.vision.common.InputImage;
+import com.google.android.gms.tasks.Tasks;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
     int page=0;
