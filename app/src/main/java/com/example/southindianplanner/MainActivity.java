@@ -458,30 +458,49 @@ public class MainActivity extends Activity {
       pick.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"image/jpeg","image/png","image/webp","image/heic","image/heif","image/heic-sequence","image/heif-sequence","application/pdf"});
       startActivityForResult(pick,REQ_BILL_SCAN);
     }
+    android.graphics.Bitmap enhanceReceiptBitmap(android.graphics.Bitmap source){
+      int maxSide=Math.max(source.getWidth(),source.getHeight());
+      float scale=Math.min(2.0f,3600.0f/Math.max(1,maxSide));
+      int w=Math.max(1,Math.round(source.getWidth()*scale)),h=Math.max(1,Math.round(source.getHeight()*scale));
+      android.graphics.Bitmap scaled=android.graphics.Bitmap.createScaledBitmap(source,w,h,true);
+      int[] pixels=new int[w*h];scaled.getPixels(pixels,0,w,0,0,w,h);
+      for(int i=0;i<pixels.length;i++){
+        int c=pixels[i],r=(c>>16)&255,g=(c>>8)&255,b=c&255;
+        double gray=0.299*r+0.587*g+0.114*b;
+        int v=(int)Math.max(0,Math.min(255,(gray-128.0)*1.75+142.0));
+        pixels[i]=android.graphics.Color.rgb(v,v,v);
+      }
+      android.graphics.Bitmap enhanced=android.graphics.Bitmap.createBitmap(w,h,android.graphics.Bitmap.Config.ARGB_8888);
+      enhanced.setPixels(pixels,0,w,0,0,w,h);
+      if(scaled!=source)scaled.recycle();
+      return enhanced;
+    }
+    com.google.mlkit.vision.text.Text recognizeReceipt(android.graphics.Bitmap bitmap)throws Exception{
+      com.google.mlkit.vision.text.TextRecognizer recognizer=TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+      com.google.mlkit.vision.text.Text original=Tasks.await(recognizer.process(InputImage.fromBitmap(bitmap,0)));
+      android.graphics.Bitmap enhanced=enhanceReceiptBitmap(bitmap);
+      try{
+        com.google.mlkit.vision.text.Text improved=Tasks.await(recognizer.process(InputImage.fromBitmap(enhanced,0)));
+        String a=original.getText()==null?"":original.getText(),b=improved.getText()==null?"":improved.getText();
+        int scoreA=a.replaceAll("[^A-Za-z0-9]","").length(),scoreB=b.replaceAll("[^A-Za-z0-9]","").length();
+        return scoreB>scoreA?improved:original;
+      }finally{enhanced.recycle();}
+    }
     String billOcrText(com.google.mlkit.vision.text.Text result){
       ArrayList<com.google.mlkit.vision.text.Text.Line> lines=new ArrayList<>();
-      for(com.google.mlkit.vision.text.Text.TextBlock block:result.getTextBlocks()) lines.addAll(block.getLines());
-      Collections.sort(lines,(a,b)->{
-        android.graphics.Rect ra=a.getBoundingBox(),rb=b.getBoundingBox();
-        int ya=ra==null?0:(ra.top+ra.bottom)/2, yb=rb==null?0:(rb.top+rb.bottom)/2;
-        if(ya!=yb)return ya-yb; return (ra==null?0:ra.left)-(rb==null?0:rb.left);
-      });
+      for(com.google.mlkit.vision.text.Text.TextBlock block:result.getTextBlocks())lines.addAll(block.getLines());
+      Collections.sort(lines,(a,b)->{android.graphics.Rect x=a.getBoundingBox(),y=b.getBoundingBox();int cy=x==null?0:(x.top+x.bottom)/2,dy=y==null?0:(y.top+y.bottom)/2;return cy==dy?(x==null?0:x.left)-(y==null?0:y.left):cy-dy;});
       ArrayList<ArrayList<com.google.mlkit.vision.text.Text.Line>> rows=new ArrayList<>();
       for(com.google.mlkit.vision.text.Text.Line line:lines){
-        android.graphics.Rect r=line.getBoundingBox();int cy=r==null?0:(r.top+r.bottom)/2;
-        ArrayList<com.google.mlkit.vision.text.Text.Line> target=null;
-        for(ArrayList<com.google.mlkit.vision.text.Text.Line> row:rows){
-          android.graphics.Rect first=row.get(0).getBoundingBox();int ry=first==null?0:(first.top+first.bottom)/2;
-          if(Math.abs(cy-ry)<=Math.max(12,first==null?12:first.height()/2)){target=row;break;}
-        }
+        android.graphics.Rect r=line.getBoundingBox();int cy=r==null?0:(r.top+r.bottom)/2;ArrayList<com.google.mlkit.vision.text.Text.Line> target=null;
+        for(ArrayList<com.google.mlkit.vision.text.Text.Line> row:rows){android.graphics.Rect first=row.get(0).getBoundingBox();int ry=first==null?0:(first.top+first.bottom)/2;int tolerance=Math.max(18,first==null?18:first.height());if(Math.abs(cy-ry)<=tolerance){target=row;break;}}
         if(target==null){target=new ArrayList<>();rows.add(target);}target.add(line);
       }
       StringBuilder out=new StringBuilder();
       for(ArrayList<com.google.mlkit.vision.text.Text.Line> row:rows){
-        Collections.sort(row,(a,b)->{android.graphics.Rect ra=a.getBoundingBox(),rb=b.getBoundingBox();return (ra==null?0:ra.left)-(rb==null?0:rb.left);});
-        StringBuilder text=new StringBuilder();
-        for(com.google.mlkit.vision.text.Text.Line line:row){if(text.length()>0)text.append(" ");text.append(line.getText());}
-        if(text.length()>0)out.append(text).append("\n");
+        Collections.sort(row,(a,b)->{android.graphics.Rect x=a.getBoundingBox(),y=b.getBoundingBox();return (x==null?0:x.left)-(y==null?0:y.left);});
+        StringBuilder lineText=new StringBuilder();for(com.google.mlkit.vision.text.Text.Line line:row){if(lineText.length()>0)lineText.append(" ");lineText.append(line.getText());}
+        if(lineText.length()>0)out.append(lineText).append("\n");
       }
       return out.toString().trim();
     }
@@ -491,27 +510,23 @@ public class MainActivity extends Activity {
         try{
           String mime=getContentResolver().getType(uri);StringBuilder allText=new StringBuilder();
           if("application/pdf".equalsIgnoreCase(mime)||uri.toString().toLowerCase(Locale.US).endsWith(".pdf")){
-            android.os.ParcelFileDescriptor fd=getContentResolver().openFileDescriptor(uri,"r");
-            if(fd==null)throw new IOException("Cannot open this PDF invoice");
+            android.os.ParcelFileDescriptor fd=getContentResolver().openFileDescriptor(uri,"r");if(fd==null)throw new IOException("Cannot open this PDF invoice");
             android.graphics.pdf.PdfRenderer renderer=new android.graphics.pdf.PdfRenderer(fd);
             try{for(int pageNo=0;pageNo<renderer.getPageCount();pageNo++){
-              android.graphics.pdf.PdfRenderer.Page page=renderer.openPage(pageNo);
-              android.graphics.Bitmap bm=android.graphics.Bitmap.createBitmap(page.getWidth()*2,page.getHeight()*2,android.graphics.Bitmap.Config.ARGB_8888);
-              try{page.render(bm,null,null,android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
-                com.google.mlkit.vision.text.Text result=Tasks.await(TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(InputImage.fromBitmap(bm,0)));
-                allText.append("\n").append(billOcrText(result)).append("\n");
-              }finally{bm.recycle();page.close();}
+              android.graphics.pdf.PdfRenderer.Page page=renderer.openPage(pageNo);android.graphics.Bitmap bm=android.graphics.Bitmap.createBitmap(page.getWidth()*2,page.getHeight()*2,android.graphics.Bitmap.Config.ARGB_8888);
+              try{page.render(bm,null,null,android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);allText.append("\n").append(billOcrText(recognizeReceipt(bm))).append("\n");}
+              finally{bm.recycle();page.close();}
             }}finally{renderer.close();fd.close();}
           }else{
             android.graphics.Bitmap bitmap;
             if(Build.VERSION.SDK_INT>=28){android.graphics.ImageDecoder.Source source=android.graphics.ImageDecoder.createSource(getContentResolver(),uri);bitmap=android.graphics.ImageDecoder.decodeBitmap(source);}
-            else{android.graphics.BitmapFactory.Options opts=new android.graphics.BitmapFactory.Options();opts.inPreferredConfig=android.graphics.Bitmap.Config.ARGB_8888;java.io.InputStream stream=getContentResolver().openInputStream(uri);bitmap=android.graphics.BitmapFactory.decodeStream(stream,null,opts);if(stream!=null)stream.close();}
+            else{java.io.InputStream stream=getContentResolver().openInputStream(uri);bitmap=android.graphics.BitmapFactory.decodeStream(stream);if(stream!=null)stream.close();}
             if(bitmap==null)throw new IOException("Unsupported image format. Please choose a JPG or PNG copy.");
-            try{com.google.mlkit.vision.text.Text result=Tasks.await(TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(InputImage.fromBitmap(bitmap,0)));allText.append(billOcrText(result));}finally{bitmap.recycle();}
+            try{allText.append(billOcrText(recognizeReceipt(bitmap)));}finally{bitmap.recycle();}
           }
           String raw=allText.toString().trim();if(raw.isEmpty())throw new IOException("No readable text found. Try a sharper, well-lit photo or a text-based PDF.");
           runOnUiThread(()->reviewBillText(raw));
-        }catch(Exception e){runOnUiThread(()->new AlertDialog.Builder(this).setTitle("Could not read bill").setMessage("Try a clearer photo or a text-based PDF. "+e.getMessage()).setPositiveButton("OK",null).show());}
+        }catch(Exception e){runOnUiThread(()->new AlertDialog.Builder(this).setTitle("Could not read bill").setMessage("Try a clearer, well-lit photo or PDF. "+e.getMessage()).setPositiveButton("OK",null).show());}
       });
     }
     String canonicalBillItem(String rawName){
@@ -530,29 +545,43 @@ public class MainActivity extends Activity {
       if(n.contains("carrot")||n.contains("chana dal")||n.contains("pineapple")||n.contains("coconut"))return "kg";
       return "item";
     }
+    boolean billNumber(String value){
+      return value!=null&&value.replace("₹","").replace(",","").matches("[0-9]+(?:\\.[0-9]{1,3})?");
+    }
+    String billCleanNumber(String value){return value.replace("₹","").replace(",","").trim();}
+    String[] parseBillRow(String source){
+      String line=source.trim().replaceAll("\\s+"," ");if(line.isEmpty())return null;
+      ArrayList<String> t=new ArrayList<>(Arrays.asList(line.split(" ")));
+      if(t.size()>1&&t.get(0).matches("\\d{1,2}"))t.remove(0);
+      if(t.size()<4)return null;
+      String total=t.get(t.size()-1).replaceAll("^[^0-9]*","").replaceAll("[^0-9.].*$","");
+      if(!total.matches("[0-9,]+\\.[0-9]{2}"))return null;
+      t.remove(t.size()-1);
+      if(!t.isEmpty()&&t.get(t.size()-1).matches("[0-9]+(?:\\.[0-9]+)?%"))t.remove(t.size()-1);
+      if(t.size()<3)return null;
+      String unitPrice=t.get(t.size()-1);if(!unitPrice.matches("[0-9,]+\\.[0-9]{2}"))return null;t.remove(t.size()-1);
+      String quantity=t.get(t.size()-1);if(!billNumber(quantity))return null;t.remove(t.size()-1);
+      if(!t.isEmpty()&&t.get(t.size()-1).matches("[0-9,]+\\.[0-9]{2}"))t.remove(t.size()-1);
+      String name=String.join(" ",t).trim();if(name.isEmpty())return null;
+      return new String[]{name,billCleanNumber(quantity),billCleanNumber(total)};
+    }
     String prepareBillRows(String raw){
-      StringBuilder rows=new StringBuilder();
-      java.util.regex.Pattern row=java.util.regex.Pattern.compile("^\\s*(?:\\d+\\s+)?(.+?)\\s+(?:[\\d,]+\\.\\d{2}\\s+)?([\\d]+(?:\\.[\\d]+)?)\\s+([\\d,]+\\.\\d{2})\\s+\\d+(?:\\.\\d+)?%\\s+([\\d,]+\\.\\d{2})\\s*$");
-      String pending="";
+      StringBuilder rows=new StringBuilder();String pending="";
       for(String source:raw.split("\\r?\\n")){
         String line=source.trim().replaceAll("\\s+"," ");if(line.isEmpty())continue;
         String lower=line.toLowerCase(Locale.US);
-        if(lower.startsWith("hsn")||lower.contains("invoice no")||lower.contains("order no")||lower.contains("gstin")||
-          lower.contains("phone no")||lower.contains("site no")||lower.contains("taxable")||lower.startsWith("cgst")||
-          lower.startsWith("sgst")||lower.startsWith("subtotal")||lower.equals("total")||lower.startsWith("thank you")||
-          lower.startsWith("s.no")||lower.startsWith("items")||lower.startsWith("tax %")||lower.startsWith("operator")||
-          lower.startsWith("payment method")||lower.contains("kpn fresh")||lower.contains("tax invoice"))continue;
-        java.util.regex.Matcher m=row.matcher(line);
-        if(!m.matches()&&!pending.isEmpty()){m=row.matcher(pending+" "+line);}
-        if(m.matches()){
-          String original=m.group(1).trim(),name=canonicalBillItem(original);
-          double qty=num(m.group(2).replace(",","")),total=num(m.group(4).replace(",",""));
-          if(!name.isEmpty()&&qty>0&&total>=0)rows.append(name).append(" | ").append(m.group(2)).append(" | ").append(billUnit(name,original)).append(" | ").append(String.format(Locale.US,"%.2f",total)).append("\\n");
+        if(lower.startsWith("hsn")||lower.contains("invoice no")||lower.contains("order no")||lower.contains("gstin")||lower.contains("phone no")||
+          lower.contains("site no")||lower.contains("taxable")||lower.startsWith("cgst")||lower.startsWith("sgst")||lower.startsWith("subtotal")||
+          lower.equals("total")||lower.startsWith("thank you")||lower.startsWith("s.no")||lower.startsWith("items")||lower.startsWith("tax %")||
+          lower.startsWith("operator")||lower.startsWith("payment method")||lower.contains("kpn fresh")||lower.contains("tax invoice"))continue;
+        String candidate=(pending+" "+line).trim();String[] parsed=parseBillRow(candidate);
+        if(parsed!=null){
+          String name=canonicalBillItem(parsed[0]);double qty=num(parsed[1]),total=num(parsed[2]);
+          if(!name.isEmpty()&&qty>0&&total>=0)rows.append(name).append(" | ").append(parsed[1]).append(" | ").append(billUnit(name,parsed[0])).append(" | ").append(String.format(Locale.US,"%.2f",total)).append("\\n");
           pending="";continue;
         }
-        if(!lower.matches("^[\\d\\s.,%₹]+$")&&!lower.matches(".*\\b\\d{6,}\\b.*")&&
-          !lower.startsWith("invoice")&&!lower.startsWith("order")&&!lower.startsWith("phone")&&!lower.startsWith("gstin"))
-          pending=(pending+" "+line).trim();
+        if(!line.matches("^[0-9\\s.,%₹]+$")&&!lower.matches(".*\\b\\d{6,}\\b.*")&&
+          !lower.startsWith("invoice")&&!lower.startsWith("order")&&!lower.startsWith("phone")&&!lower.startsWith("gstin"))pending=candidate;
       }
       return rows.toString().trim();
     }
