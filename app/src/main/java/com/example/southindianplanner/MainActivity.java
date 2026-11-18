@@ -12,6 +12,7 @@ import android.widget.*;
 import android.provider.Settings;
 import java.util.*;
 import java.text.SimpleDateFormat;
+import java.io.*;
 import org.json.*;
 
 public class MainActivity extends Activity {
@@ -21,6 +22,7 @@ public class MainActivity extends Activity {
     SharedPreferences prefs;
     final int green=Color.rgb(35,115,76), ink=Color.rgb(35,45,39), muted=Color.rgb(105,115,108), pale=Color.rgb(250,252,249);
     interface SaveFields { void save(String[] values); }
+    static final int REQ_BACKUP_EXPORT=4101, REQ_BACKUP_IMPORT=4102;
 
     final String[][] meals={
       {"Idli + sambar","Rice + keerai kootu + carrot poriyal","Dosa + egg omelette"},
@@ -270,8 +272,67 @@ public class MainActivity extends Activity {
       if(Build.VERSION.SDK_INT>=31)button("Allow exact-time reminders in Android",()->{try{startActivity(new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM));}catch(Exception e){startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:"+getPackageName())));}});
       card("FOOD PLAN RULES FROM YOUR PDF","No upma, pongal, appam, idiyappam or evening snacks. Poha and variety rice included. Poori and chapati on weekends only. Some lunch dishes are repeated for dinner to reduce cooking.");
       card("LEFTOVER FOOD SAFETY","Refrigerate cooked rice and curries promptly (within 1 hour in hot weather). Do not leave cooked rice at room temperature until dinner. Reheat thoroughly before serving.");
-      card("DATA","Your menu edits, purchases, quantities, prices and settings are saved on this phone and remain after closing the app.");
+      card("BACKUP & RESTORE","Export a copy of your menus, purchases, stock statuses, price history, budget and reminder settings. Restore it on this phone when needed.");
+      button("Export app data backup",()->exportBackup());
+      button("Restore app data from backup",()->confirmRestoreBackup());
+            card("DATA","Your menu edits, purchases, quantities, prices and settings are saved on this phone and remain after closing the app.");
     }
+    void exportBackup(){
+      try{
+        JSONObject rootJson=new JSONObject();rootJson.put("app","NSV Smart Kitchen");rootJson.put("backupVersion",1);rootJson.put("exportedAt",new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss",Locale.US).format(new Date()));
+        JSONObject data=new JSONObject();
+        for(Map.Entry<String,?> entry:prefs.getAll().entrySet()){
+          Object value=entry.getValue();JSONObject item=new JSONObject();
+          if(value instanceof Boolean){item.put("type","boolean");item.put("value",(Boolean)value);}
+          else if(value instanceof Integer){item.put("type","int");item.put("value",(Integer)value);}
+          else if(value instanceof Long){item.put("type","long");item.put("value",(Long)value);}
+          else if(value instanceof Float){item.put("type","float");item.put("value",((Float)value).doubleValue());}
+          else {item.put("type","string");item.put("value",String.valueOf(value));}
+          data.put(entry.getKey(),item);
+        }
+        rootJson.put("preferences",data);
+        Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("application/json");intent.putExtra(Intent.EXTRA_TITLE,"NSV-Smart-Kitchen-Backup-"+new SimpleDateFormat("yyyyMMdd-HHmm",Locale.US).format(new Date())+".json");
+        pendingBackupJson=rootJson.toString(2);startActivityForResult(intent,REQ_BACKUP_EXPORT);
+      }catch(Exception e){Toast.makeText(this,"Could not prepare backup: "+e.getMessage(),Toast.LENGTH_LONG).show();}
+    }
+    String pendingBackupJson;
+    void confirmRestoreBackup(){
+      new AlertDialog.Builder(this).setTitle("Restore NSV backup?")
+        .setMessage("Restoring replaces the app's current saved data with the selected backup. Export a fresh backup first if you want to keep the current data.")
+        .setNegativeButton("Cancel",null).setPositiveButton("Choose backup",(d,w)->{
+          Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("application/json");startActivityForResult(intent,REQ_BACKUP_IMPORT);
+        }).show();
+    }
+    @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
+      super.onActivityResult(requestCode,resultCode,data);
+      if(resultCode!=RESULT_OK||data==null||data.getData()==null)return;
+      if(requestCode==REQ_BACKUP_EXPORT){
+        try(OutputStream out=getContentResolver().openOutputStream(data.getData())){
+          if(out==null)throw new IOException("Unable to open the selected destination");
+          out.write(pendingBackupJson.getBytes("UTF-8"));out.flush();Toast.makeText(this,"Backup exported successfully.",Toast.LENGTH_LONG).show();
+        }catch(Exception e){Toast.makeText(this,"Backup export failed: "+e.getMessage(),Toast.LENGTH_LONG).show();}
+      }else if(requestCode==REQ_BACKUP_IMPORT){
+        try(InputStream in=getContentResolver().openInputStream(data.getData())){
+          if(in==null)throw new IOException("Unable to read selected backup");
+          ByteArrayOutputStream bytes=new ByteArrayOutputStream();byte[] buffer=new byte[8192];int n;while((n=in.read(buffer))!=-1)bytes.write(buffer,0,n);
+          JSONObject rootJson=new JSONObject(new String(bytes.toByteArray(),"UTF-8"));
+          if(!rootJson.has("preferences")||rootJson.optInt("backupVersion",0)!=1)throw new IOException("This is not a supported NSV backup file");
+          JSONObject saved=rootJson.getJSONObject("preferences");SharedPreferences.Editor editor=prefs.edit().clear();
+          Iterator<String> keys=saved.keys();
+          while(keys.hasNext()){
+            String key=keys.next();JSONObject item=saved.getJSONObject(key);String type=item.optString("type");Object value=item.opt("value");
+            if("boolean".equals(type))editor.putBoolean(key,Boolean.parseBoolean(String.valueOf(value)));
+            else if("int".equals(type))editor.putInt(key,Integer.parseInt(String.valueOf(value)));
+            else if("long".equals(type))editor.putLong(key,Long.parseLong(String.valueOf(value)));
+            else if("float".equals(type))editor.putFloat(key,Float.parseFloat(String.valueOf(value)));
+            else if(value!=null&&!JSONObject.NULL.equals(value))editor.putString(key,String.valueOf(value));
+          }
+          editor.apply();loadSavedMeals();scheduleAllReminders();draw();
+          Toast.makeText(this,"Backup restored successfully. Your saved app data has been replaced with the backup.",Toast.LENGTH_LONG).show();
+        }catch(Exception e){Toast.makeText(this,"Restore failed. Your existing data was not intentionally changed. Check that you selected a valid NSV backup. "+e.getMessage(),Toast.LENGTH_LONG).show();}
+      }
+    }
+
     void addReminderControls(boolean morning){
       String prefix=morning?"morning":"evening";
       boolean enabled=prefs.getBoolean(prefix+"_enabled",true);
