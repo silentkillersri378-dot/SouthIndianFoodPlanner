@@ -6,6 +6,8 @@ public class BootReceiver extends BroadcastReceiver {
   if(Intent.ACTION_BOOT_COMPLETED.equals(a)||Intent.ACTION_MY_PACKAGE_REPLACED.equals(a)){
    ReminderReceiver.scheduleNext(context,"morning");
    ReminderReceiver.scheduleNext(context,"evening");
+   ReminderReceiver.scheduleNext(context,"month_end");
+   ReminderReceiver.scheduleNext(context,"month_start");
   }
  }
 }
