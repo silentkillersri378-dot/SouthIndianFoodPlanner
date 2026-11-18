@@ -459,21 +459,31 @@ public class MainActivity extends Activity {
       startActivityForResult(pick,REQ_BILL_SCAN);
     }
     android.graphics.Bitmap enhanceReceiptBitmap(android.graphics.Bitmap source){
-      int maxSide=Math.max(source.getWidth(),source.getHeight());
-      float scale=Math.min(2.0f,3600.0f/Math.max(1,maxSide));
-      int w=Math.max(1,Math.round(source.getWidth()*scale)),h=Math.max(1,Math.round(source.getHeight()*scale));
-      android.graphics.Bitmap scaled=android.graphics.Bitmap.createScaledBitmap(source,w,h,true);
-      int[] pixels=new int[w*h];scaled.getPixels(pixels,0,w,0,0,w,h);
-      for(int i=0;i<pixels.length;i++){
-        int c=pixels[i],r=(c>>16)&255,g=(c>>8)&255,b=c&255;
-        double gray=0.299*r+0.587*g+0.114*b;
-        int v=(int)Math.max(0,Math.min(255,(gray-128.0)*1.75+142.0));
-        pixels[i]=android.graphics.Color.rgb(v,v,v);
+      android.graphics.Bitmap software=null,scaled=null;
+      try{
+        // ImageDecoder may return Config.HARDWARE, which does not support getPixels().
+        software=source.getConfig()==android.graphics.Bitmap.Config.HARDWARE
+          ? source.copy(android.graphics.Bitmap.Config.ARGB_8888,false)
+          : source.copy(android.graphics.Bitmap.Config.ARGB_8888,false);
+        if(software==null)throw new IllegalStateException("Could not create a software bitmap for receipt OCR.");
+        int maxSide=Math.max(software.getWidth(),software.getHeight());
+        float scale=Math.min(2.0f,3600.0f/Math.max(1,maxSide));
+        int w=Math.max(1,Math.round(software.getWidth()*scale)),h=Math.max(1,Math.round(software.getHeight()*scale));
+        scaled=android.graphics.Bitmap.createScaledBitmap(software,w,h,true);
+        int[] pixels=new int[w*h];scaled.getPixels(pixels,0,w,0,0,w,h);
+        for(int i=0;i<pixels.length;i++){
+          int c=pixels[i],r=(c>>16)&255,g=(c>>8)&255,b=c&255;
+          double gray=0.299*r+0.587*g+0.114*b;
+          int v=(int)Math.max(0,Math.min(255,(gray-128.0)*1.75+142.0));
+          pixels[i]=android.graphics.Color.rgb(v,v,v);
+        }
+        android.graphics.Bitmap enhanced=android.graphics.Bitmap.createBitmap(w,h,android.graphics.Bitmap.Config.ARGB_8888);
+        enhanced.setPixels(pixels,0,w,0,0,w,h);
+        return enhanced;
+      }finally{
+        if(scaled!=null&&scaled!=software)scaled.recycle();
+        if(software!=null)software.recycle();
       }
-      android.graphics.Bitmap enhanced=android.graphics.Bitmap.createBitmap(w,h,android.graphics.Bitmap.Config.ARGB_8888);
-      enhanced.setPixels(pixels,0,w,0,0,w,h);
-      if(scaled!=source)scaled.recycle();
-      return enhanced;
     }
     com.google.mlkit.vision.text.Text recognizeReceipt(android.graphics.Bitmap bitmap)throws Exception{
       com.google.mlkit.vision.text.TextRecognizer recognizer=TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
