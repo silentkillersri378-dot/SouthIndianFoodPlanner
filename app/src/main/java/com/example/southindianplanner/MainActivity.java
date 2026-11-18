@@ -175,6 +175,7 @@ public class MainActivity extends Activity {
       LinkedHashSet<String> list=ingredientsForDay(day);
       card("TODAY • DAY "+(day+1),mealText(day));
       card("ONE COMBINED SHOPPING CHECKLIST","Ingredients for breakfast, lunch and dinner are combined below. Tick items you already have at home. Buy only what remains unchecked. Milk requirement: "+prefs.getString("milk_qty","500")+" ml today.");
+      button("Scan grocery bill / invoice",()->scanGroceryBill());
       button("Edit today's ingredient list",()->editDayIngredients(day));
       for(String item:list){
         final String id=key(item);String status=stockStatus(id);
@@ -322,6 +323,7 @@ public class MainActivity extends Activity {
     @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
       super.onActivityResult(requestCode,resultCode,data);
       if(resultCode!=RESULT_OK||data==null||data.getData()==null)return;
+      if(requestCode==REQ_BILL_SCAN){processBillUri(data.getData());return;}
       if(requestCode==REQ_BACKUP_EXPORT){
         try(OutputStream out=getContentResolver().openOutputStream(data.getData())){
           if(out==null)throw new IOException("Unable to open the selected destination");
