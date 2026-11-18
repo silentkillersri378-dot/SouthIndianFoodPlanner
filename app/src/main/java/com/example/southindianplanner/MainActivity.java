@@ -568,20 +568,46 @@ public class MainActivity extends Activity {
         }catch(Exception e){runOnUiThread(()->new AlertDialog.Builder(this).setTitle("Could not read bill").setMessage("Try a clearer, well-lit photo or PDF. "+e.getMessage()).setPositiveButton("OK",null).show());}
       });
     }
+    int spellingDistance(String a,String b){
+      int[] prev=new int[b.length()+1],next=new int[b.length()+1];
+      for(int j=0;j<=b.length();j++)prev[j]=j;
+      for(int i=1;i<=a.length();i++){
+        next[0]=i;
+        for(int j=1;j<=b.length();j++){
+          int cost=a.charAt(i-1)==b.charAt(j-1)?0:1;
+          next[j]=Math.min(Math.min(next[j-1]+1,prev[j]+1),prev[j-1]+cost);
+        }
+        int[] swap=prev;prev=next;next=swap;
+      }
+      return prev[b.length()];
+    }
     String canonicalBillItem(String rawName){
-      String n=rawName.toLowerCase(Locale.US).replaceAll("[^a-z0-9 ]"," ").replaceAll("\\s+"," ").trim();
+      String cleaned=rawName==null?"":rawName.trim().replaceAll("\\s+"," ");
+      String n=cleaned.toLowerCase(Locale.US).replaceAll("[^a-z0-9 ]"," ").replaceAll("\\s+"," ").trim();
       String compact=n.replace(" ","");
-      // Conservative corrections for common grocery OCR mistakes.
-      if(n.contains("carrot")||compact.contains("carot")||compact.contains("car0t"))return "Carrot";
+      if(n.isEmpty())return "";
+      // Known brand/product aliases and frequent OCR confusions.
       if(n.contains("nandini")||n.contains("nandin")||n.contains("standard milk")||n.equals("milk")||n.contains("milk 500"))return "Milk";
-      if(n.contains("chana")||n.contains("channa")||compact.contains("chanadal"))return "Chana dal";
-      if(n.contains("coconut")||compact.contains("cocnut"))return "Coconut";
+      if(n.contains("carrot")||compact.contains("carot")||compact.contains("car0t"))return "Carrot";
+      if(n.contains("chana")||n.contains("channa")||n.contains("dhal")&&n.contains("chan")||compact.contains("chanadal"))return "Chana dal";
+      if(n.contains("coconut")||compact.contains("cocnut")||compact.contains("cocon ut"))return "Coconut";
       if(n.contains("pineapple")||n.contains("pine apple")||compact.contains("pineappl"))return "Pineapple";
       if(n.contains("beetroot")||compact.contains("beetrot"))return "Beetroot";
       if(n.contains("tomato")||compact.contains("tom ato"))return "Tomato";
       if(n.contains("onion")||compact.contains("onoin"))return "Onion";
-      String cleaned=rawName.trim().replaceAll("\\s+"," ");
-      if(cleaned.isEmpty())return cleaned;
+      // Match OCR text against the app's own grocery vocabulary across all meal plans and custom items.
+      LinkedHashSet<String> vocabulary=new LinkedHashSet<>();
+      for(int day=0;day<meals.length;day++)vocabulary.addAll(ingredientsForDay(day));
+      add(vocabulary,"Rice","Wheat flour","Atta","Potato","Green chilli","Green beans","Cabbage","Cauliflower","Brinjal","Egg","Eggs","Curd","Toor dal","Moong dal","Urad dal","Peanuts","Lemon","Garlic","Ginger","Tamarind","Cooking oil","Salt","Sugar","Coriander leaves","Curry leaves","Mustard seeds","Cumin seeds","Pepper","Turmeric powder","Chilli powder","Rasam powder","Sambar powder");
+      String best=null;int bestDistance=Integer.MAX_VALUE;
+      for(String candidate:vocabulary){
+        String c=candidate.toLowerCase(Locale.US).replaceAll("[^a-z0-9 ]"," ").replaceAll("\\s+"," ").trim();
+        if(c.isEmpty())continue;
+        int distance=spellingDistance(n,c);
+        int allowed=c.length()>=9?2:(c.length()>=5?1:0);
+        if(distance<=allowed&&distance<bestDistance){best=candidate;bestDistance=distance;}
+      }
+      if(best!=null)return best;
       return cleaned.substring(0,1).toUpperCase(Locale.US)+cleaned.substring(1);
     }
     String billSignature(String raw){
