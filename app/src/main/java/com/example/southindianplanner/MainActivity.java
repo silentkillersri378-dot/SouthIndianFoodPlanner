@@ -22,7 +22,7 @@ public class MainActivity extends Activity {
     SharedPreferences prefs;
     final int green=Color.rgb(35,115,76), ink=Color.rgb(35,45,39), muted=Color.rgb(105,115,108), pale=Color.rgb(250,252,249);
     interface SaveFields { void save(String[] values); }
-    static final int REQ_BACKUP_EXPORT=4101, REQ_BACKUP_IMPORT=4102;
+    static final int REQ_BACKUP_EXPORT=4101, REQ_BACKUP_IMPORT=4102, REQ_BILL_SCAN=4103;
 
     final String[][] meals={
       {"Idli + sambar","Rice + keerai kootu + carrot poriyal","Dosa + egg omelette"},
