@@ -273,6 +273,8 @@ public class MainActivity extends Activity {
       card("MONTHLY GROCERY BUDGET","First month: tracking your actual purchases before setting a budget.\nSpent this month: "+money(spent)+(prefs.contains("budget")?"\nCurrent budget: "+money(num(prefs.getString("budget","0"))):"\nNo budget set yet.")+"\n\nPrevious months:\n"+monthHistorySummary());
       card("ADVANCED FINANCE DASHBOARD",financeDashboard()+"\n\nShopping history and price comparisons are available in Shopping.");
       button(prefs.contains("budget")?"Change monthly budget":"Set budget after reviewing spending",()->dialogFields("Monthly grocery budget",new String[]{"Monthly budget (₹)"},new String[]{prefs.getString("budget","")},v->{if(v[0].isEmpty())prefs.edit().remove("budget").apply();else if(num(v[0])>0)prefs.edit().putString("budget",v[0]).apply();draw();}));
+      card("MONTHLY BUDGET REPORTS","Get a full grocery budget summary automatically on the last day and first day of every month.");
+      addMonthlyReportControls();
       card("MORNING NOTIFICATION","Today's breakfast, lunch and dinner. Separate time and enable switch.");
       addReminderControls(true);
       card("EVENING NOTIFICATION","Tomorrow's breakfast, lunch, dinner and reminder to check the combined ingredient list.");
@@ -436,7 +438,18 @@ public class MainActivity extends Activity {
         nm.createNotificationChannel(ch);
       }
     }
-    void scheduleAllReminders(){scheduleReminder(true);scheduleReminder(false);}
+    void addMonthlyReportControls(){
+      LinearLayout c=card("Monthly budget notifications","Month-end: full closing statement. Month-start: previous month summary and new month budget.");
+      CheckBox sw=new CheckBox(this);sw.setText("Enable monthly budget notifications");sw.setChecked(prefs.getBoolean("monthly_reports_enabled",true));c.addView(sw);
+      sw.setOnCheckedChangeListener((v,on)->{prefs.edit().putBoolean("monthly_reports_enabled",on).apply();scheduleAllReminders();});
+      int eh=prefs.getInt("month_end_hour",20),em=prefs.getInt("month_end_min",0);
+      Button end=new Button(this);end.setAllCaps(false);end.setText(String.format(Locale.US,"Month-end report time: %02d:%02d",eh,em));c.addView(end);
+      end.setOnClickListener(v->new TimePickerDialog(this,(tp,h,m)->{prefs.edit().putInt("month_end_hour",h).putInt("month_end_min",m).apply();scheduleAllReminders();draw();},eh,em,false).show());
+      int sh=prefs.getInt("month_start_hour",8),sm=prefs.getInt("month_start_min",30);
+      Button start=new Button(this);start.setAllCaps(false);start.setText(String.format(Locale.US,"Month-start report time: %02d:%02d",sh,sm));c.addView(start);
+      start.setOnClickListener(v->new TimePickerDialog(this,(tp,h,m)->{prefs.edit().putInt("month_start_hour",h).putInt("month_start_min",m).apply();scheduleAllReminders();draw();},sh,sm,false).show());
+    }
+    void scheduleAllReminders(){scheduleReminder(true);scheduleReminder(false);scheduleMonthlyReports();}
     void scheduleReminder(boolean morning){
       String prefix=morning?"morning":"evening";int id=morning?100:101;
       Intent intent=new Intent(this,ReminderReceiver.class);intent.putExtra("slot",morning?"morning":"evening");
