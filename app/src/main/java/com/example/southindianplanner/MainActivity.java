@@ -172,11 +172,12 @@ public class MainActivity extends Activity {
       card("ONE COMBINED SHOPPING CHECKLIST","Ingredients for breakfast, lunch and dinner are combined below. Tick items you already have at home. Buy only what remains unchecked. Milk requirement: "+prefs.getString("milk_qty","500")+" ml today.");
       button("Edit today's ingredient list",()->editDayIngredients(day));
       for(String item:list){
-        final String id=key(item);
-        LinearLayout c=card(item,item.equals("Milk")?"Daily requirement: "+prefs.getString("milk_qty","500")+" ml\n"+priceSummary(id):priceSummary(id));
-        CheckBox have=new CheckBox(this);have.setText("Already have at home — don't buy");have.setChecked(prefs.getBoolean("have_"+id,false));c.addView(have);
-        have.setOnCheckedChangeListener((v,on)->prefs.edit().putBoolean("have_"+id,on).apply());
-        Button buy=new Button(this);buy.setText("I bought this • Enter quantity & price");buy.setAllCaps(false);c.addView(buy);buy.setOnClickListener(v->recordPurchase(item));
+        final String id=key(item);String status=stockStatus(id);
+        if("available".equals(status))continue;
+        LinearLayout itemCard=card(item,item.equals("Milk")?"Daily requirement: "+prefs.getString("milk_qty","500")+" ml\\n"+priceSummary(id):priceSummary(id));
+        Button stock=new Button(this);stock.setAllCaps(false);stock.setText("Stock: "+statusLabel(status)+" • Change");itemCard.addView(stock);
+        stock.setOnClickListener(v->chooseStockStatus(item));
+        Button buy=new Button(this);buy.setText("I bought this • Enter quantity & price");buy.setAllCaps(false);itemCard.addView(buy);buy.setOnClickListener(v->recordPurchase(item));
       }
       card("MONTHLY SPENDING","Actual purchases this month: "+money(monthSpend())+"\nRice is recorded only in the month you buy it (for example, your occasional ₹1,500 purchase). No automatic monthly rice charge.");
       button("View monthly spending history",()->showMonthlyHistory());
@@ -238,6 +239,13 @@ public class MainActivity extends Activity {
       add(s,"Salt","Cooking oil","Mustard seeds","Curry leaves");
     }
 
+    String stockStatus(String id){String s=prefs.getString("stock_"+id,null);if(s!=null)return s;return prefs.getBoolean("have_"+id,false)?"available":"finished";}
+    String statusLabel(String s){return "available".equals(s)?"Available":("low".equals(s)?"Running low":"Finished");}
+    void chooseStockStatus(String item){
+      String id=key(item);String[] labels={"Available - do not buy","Running low - remind me","Finished - add to shopping list"};String[] values={"available","low","finished"};String cur=stockStatus(id);int selected="available".equals(cur)?0:("low".equals(cur)?1:2);
+      new AlertDialog.Builder(this).setTitle(item+" stock status").setSingleChoiceItems(labels,selected,(d,w)->{String next=values[w];prefs.edit().putString("stock_"+id,next).putBoolean("have_"+id,"available".equals(next)).apply();d.dismiss();if("low".equals(next))sendLowStockAlert(item);draw();}).setNegativeButton("Cancel",null).show();
+    }
+    void sendLowStockAlert(String item){try{createNotificationChannel();Notification.Builder n=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,"ooru_meals_reminders"):new Notification.Builder(this);Intent open=new Intent(this,MainActivity.class);PendingIntent pi=PendingIntent.getActivity(this,900+Math.abs(key(item).hashCode()%500),open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);n.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("NSV - Low stock").setContentText(item+" is running low. Add it to your shopping trip.").setContentIntent(pi).setAutoCancel(true).setPriority(Notification.PRIORITY_HIGH);((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(900+Math.abs(key(item).hashCode()%500),n.build());}catch(Exception ignored){}}
     void editDayIngredients(int day){
       String current=prefs.getString("day_ingredients_"+day,joinItems(ingredientsForDayDefault(day)));
       dialogFields("Edit Day "+(day+1)+" ingredients",new String[]{"Ingredients (separate with commas)"},new String[]{current},v->{
@@ -368,7 +376,7 @@ public class MainActivity extends Activity {
         double q=num(v[0]),total=num(v[2]);if(q<=0||total<0||v[1].trim().isEmpty()){Toast.makeText(this,"Enter a valid quantity, unit and price.",Toast.LENGTH_LONG).show();return;}
         String id=key(item);JSONArray a=purchases(id);JSONObject o=new JSONObject();
         try{o.put("date",new SimpleDateFormat("yyyy-MM-dd",Locale.US).format(new Date()));o.put("qty",q);o.put("unit",v[1].trim());o.put("total",total);o.put("unitPrice",total/q);a.put(o);
-          prefs.edit().putString("purchases_"+id,a.toString()).putBoolean("have_"+id,true).apply();
+          prefs.edit().putString("purchases_"+id,a.toString()).putBoolean("have_"+id,true).putString("stock_"+id,"available").apply();
           Toast.makeText(this,"Purchase saved. Price history updated.",Toast.LENGTH_SHORT).show();draw();
         }catch(Exception e){Toast.makeText(this,"Could not save purchase.",Toast.LENGTH_SHORT).show();}
       });
