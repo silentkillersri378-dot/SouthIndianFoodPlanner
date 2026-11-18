@@ -171,7 +171,7 @@ public class MainActivity extends Activity {
       button("Edit today's ingredient list",()->editDayIngredients(day));
       for(String item:list){
         final String id=key(item);
-        LinearLayout c=card(item,priceSummary(id));
+        LinearLayout c=card(item,item.equals("Milk")?"Daily requirement: "+prefs.getString("milk_qty","500")+" ml\n"+priceSummary(id):priceSummary(id));
         CheckBox have=new CheckBox(this);have.setText("Already have at home — don't buy");have.setChecked(prefs.getBoolean("have_"+id,false));c.addView(have);
         have.setOnCheckedChangeListener((v,on)->prefs.edit().putBoolean("have_"+id,on).apply());
         Button buy=new Button(this);buy.setText("I bought this • Enter quantity & price");buy.setAllCaps(false);c.addView(buy);buy.setOnClickListener(v->recordPurchase(item));
@@ -189,7 +189,8 @@ public class MainActivity extends Activity {
       else{
         for(String meal:meals[d])mapDishIngredients(meal,out);
       }
-      out.add("Milk ("+prefs.getString("milk_qty","500")+" ml daily)");
+      out.add("Milk");
+      for(Map.Entry<String,?> en:prefs.getAll().entrySet())if(en.getKey().startsWith("custom_item_"))out.add(String.valueOf(en.getValue()));
       return out;
     }
     void add(LinkedHashSet<String> s,String... values){for(String v:values)s.add(v);}
@@ -321,7 +322,7 @@ public class MainActivity extends Activity {
     }
     String monthHistorySummary(){
       Map<String,Double> totals=monthTotals();if(totals.isEmpty())return "No completed purchase months yet.";
-      StringBuilder b=new StringBuilder();for(Map.Entry<String,Double> e:totals.entrySet())b.append(e.getKey()).append(": ").append(money(e.getValue())).append("\\n");return b.toString().trim();
+      StringBuilder b=new StringBuilder();for(Map.Entry<String,Double> e:totals.entrySet())b.append(e.getKey()).append(": ").append(money(e.getValue())).append("\n");return b.toString().trim();
     }
     void showMonthlyHistory(){new AlertDialog.Builder(this).setTitle("Monthly grocery spending").setMessage(monthHistorySummary()).setPositiveButton("Close",null).show();}
     double monthSpend(){
