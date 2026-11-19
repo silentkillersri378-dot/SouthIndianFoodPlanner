@@ -31,37 +31,37 @@ public class MainActivity extends Activity {
     android.net.Uri billCameraUri;
 
     final String[][] meals={
-      {"Idli + coconut chutney + sambar","Rice + drumstick sambar + keerai poriyal + rasam + curd","Onion dosa + tomato chutney"},
-      {"Ghee podi dosa","Rice + pumpkin sambar + carrot beans poriyal + rasam + curd","Idiyappam + vegetable kurma"},
-      {"Ven pongal + gothsu","Rice + carrot & French beans sambar + cabbage poriyal + rasam + egg","Ragi dosa + mint chutney"},
-      {"Vegetable poha","Rice + brinjal kara kuzhambu + beetroot poriyal + rasam + curd","Chapati + channa masala"},
-      {"Rava idli + sambar","Rice + potato gravy + beans poriyal + rasam + curd","Tomato uthappam + chutney"},
-      {"Masala dosa","Rice + ladies finger sambar + carrot poriyal + rasam + egg","Pesarattu + ginger chutney"},
-      {"Thinai pongal","Rice + mixed vegetable sambar + vazhakkai poriyal + rasam + curd","Chapati + green peas gravy"},
-      {"Onion rava dosa","Rice + drumstick gravy + cabbage poriyal + rasam + curd","Idli + sambar"},
-      {"Vegetable upma","Rice + pumpkin sambar + beans carrot poriyal + rasam + egg","Kothu chapati + vegetable salna"},
-      {"Kanchipuram idli","Rice + tomato garlic kuzhambu + spinach poriyal + rasam + curd","Set dosa + vegetable kurma"},
-      {"Poha with peas","Rice + radish sambar + potato roast + rasam + curd","Chapati + egg curry"},
-      {"Kal dosa + vadacurry","Rice + brinjal sambar + carrot beans poriyal + rasam + egg","Lemon sevai"},
-      {"Ven pongal + gothsu","Rice + potato peas gravy + cabbage poriyal + rasam + curd","Adai + avial"},
-      {"Mysore masala dosa","Rice + chow chow sambar + beetroot poriyal + rasam + curd","Wheat dosa + onion chutney"},
-      {"Idli + podi","Rice + drumstick sambar + keerai kootu + rasam + egg","Chapati + paneer gravy"},
-      {"Aval upma","Rice + onion tomato kara kuzhambu + beans poriyal + rasam + curd","Ragi idli + sambar"},
-      {"Pesarattu","Rice + pumpkin sambar + potato fry + rasam + curd","Dosa + egg omelette"},
-      {"Set dosa + vegetable sagu","Rice + carrot beans sambar + cabbage poriyal + rasam + egg","Chapati + mixed vegetable kurma"},
-      {"Rava kichadi","Rice + vendakkai puli kuzhambu + keerai poriyal + rasam + curd","Tomato dosa + mint chutney"},
-      {"Onion uthappam","Rice + drumstick potato gravy + carrot poriyal + rasam + curd","Idiyappam + coconut milk"},
-      {"Kambu dosa","Rice + brinjal sambar + beans poriyal + rasam + egg","Chapati + channa gravy"},
-      {"Mini idli + sambar","Rice + pumpkin sambar + cabbage poriyal + rasam + curd","Rava dosa + tomato chutney"},
-      {"Lemon poha","Rice + kathirikai kara kuzhambu + beetroot poriyal + rasam + egg","Vegetable uthappam"},
-      {"Ghee dosa","Rice + mixed vegetable kootu + carrot beans poriyal + rasam + curd","Chapati + potato kurma"},
-      {"Ragi idli","Rice + drumstick sambar + vazhakkai poriyal + rasam + curd","Egg dosa + onion chutney"},
-      {"Vegetable pongal","Rice + capsicum potato gravy + spinach poriyal + rasam + egg","Appam + vegetable stew"},
-      {"Masala paniyaram","Rice + radish sambar + carrot poriyal + rasam + curd","Dosa + sambar"},
-      {"Wheat dosa","Rice + pumpkin sambar + beans cabbage poriyal + rasam + egg","Chapati + soya chunks gravy"},
-      {"Poha with carrots and peas","Rice + drumstick kara kuzhambu + beetroot poriyal + rasam + curd","Idli + podi"},
-      {"Paper dosa + sambar","Rice + vegetable kurma + cabbage poriyal + rasam + egg","Chapati + tomato gravy"},
-      {"Kuthiraivali pongal","Rice + brinjal drumstick sambar + carrot beans poriyal + rasam + curd","Onion dosa + egg omelette"}
+      {"Idli + coconut chutney","Rice + drumstick sambar + keerai poriyal","Onion dosa + tomato chutney"},
+      {"Ghee podi dosa","Rice + pumpkin sambar + carrot beans poriyal","Vegetable upma + coconut chutney"},
+      {"Ven pongal + gothsu","Rice + carrot beans sambar + cabbage poriyal + egg","Ragi dosa + mint chutney"},
+      {"Vegetable poha","Rice + brinjal kara kuzhambu + beetroot poriyal","Rava idli + sambar"},
+      {"Rava idli + sambar","Rice + potato gravy + beans poriyal","Tomato dosa + chutney"},
+      {"Masala dosa","Rice + ladies finger sambar + carrot poriyal + egg","Onion dosa + chutney"},
+      {"Thinai pongal","Rice + mixed vegetable sambar + vazhakkai poriyal","Idli + sambar"},
+      {"Onion rava dosa","Rice + drumstick gravy + cabbage poriyal","Idli + podi"},
+      {"Vegetable upma","Rice + pumpkin sambar + beans carrot poriyal + egg","Kothu dosa + vegetable salna"},
+      {"Kanchipuram idli","Rice + tomato garlic kuzhambu + spinach poriyal","Set dosa + vegetable kurma"},
+      {"Poha with peas","Rice + radish sambar + potato roast","Egg dosa + chutney"},
+      {"Kal dosa + vadacurry","Rice + brinjal sambar + carrot beans poriyal + egg","Lemon sevai"},
+      {"Ven pongal + gothsu","Rice + potato peas gravy + cabbage poriyal","Wheat dosa + onion chutney"},
+      {"Mysore masala dosa","Rice + chow chow sambar + beetroot poriyal","Wheat dosa + onion chutney"},
+      {"Idli + podi","Rice + drumstick sambar + keerai kootu + egg","Ragi idli + sambar"},
+      {"Aval upma","Rice + onion tomato kara kuzhambu + beans poriyal + curd","Ragi dosa + chutney"},
+      {"Onion dosa","Rice + pumpkin sambar + potato fry","Dosa + egg omelette"},
+      {"Set dosa + vegetable sagu","Rice + carrot beans sambar + cabbage poriyal + egg","Mixed vegetable dosa"},
+      {"Rava kichadi","Rice + vendakkai puli kuzhambu + keerai poriyal","Tomato dosa + mint chutney"},
+      {"Onion dosa","Rice + drumstick potato gravy + carrot poriyal","Idli + coconut chutney"},
+      {"Kambu dosa","Rice + brinjal sambar + beans poriyal + egg","Channa sundal + dosa"},
+      {"Mini idli + sambar","Rice + pumpkin sambar + cabbage poriyal","Rava dosa + tomato chutney"},
+      {"Lemon poha","Rice + kathirikai kara kuzhambu + beetroot poriyal + egg","Dosa + tomato chutney"},
+      {"Ghee dosa","Rice + mixed vegetable kootu + carrot beans poriyal","Potato masala dosa"},
+      {"Ragi idli","Rice + drumstick sambar + vazhakkai poriyal","Egg dosa + onion chutney"},
+      {"Vegetable pongal","Rice + capsicum potato gravy + spinach poriyal + egg","Dosa + chutney"},
+      {"Masala paniyaram","Rice + radish sambar + carrot poriyal","Dosa + sambar"},
+      {"Wheat dosa","Rice + pumpkin sambar + beans cabbage poriyal + egg","Ragi idli + chutney"},
+      {"Poha with carrots and peas","Rice + drumstick kara kuzhambu + beetroot poriyal","Idli + podi"},
+      {"Paper dosa + sambar","Rice + vegetable kurma + cabbage poriyal + egg","Onion dosa + tomato gravy"},
+      {"Kuthiraivali pongal","Rice + brinjal drumstick sambar + carrot beans poriyal","Onion dosa + egg omelette"}
     };
     final String[] reuse={
       "", "Prepare extra lemon rice for dinner.", "", "Prepare extra rice and rasam for dinner.", "",
@@ -142,7 +142,7 @@ public class MainActivity extends Activity {
         .setPositiveButton("Save",(d,w)->{String[] v=new String[fields.length];for(int i=0;i<v.length;i++)v[i]=fields[i].getText().toString().trim();save.save(v);}).show();
     }
     String mealText(int d){return "Breakfast: "+meals[d][0]+"\nLunch: "+meals[d][1]+"\nDinner: "+meals[d][2];}
-    void loadSavedMeals(){for(int d=0;d<meals.length;d++)for(int i=0;i<3;i++){String x=prefs.getString("meal_"+d+"_"+i,null);if(x!=null)meals[d][i]=x;}}
+    void loadSavedMeals(){for(int d=0;d<meals.length;d++)for(int i=0;i<3;i++){String x=prefs.getString("meal_"+d+"_"+i,null);if(x!=null && !x.toLowerCase(Locale.US).matches(".*(idiyappam|idiappam|pesarattu|uthappam|adai|avial|appam).*"))meals[d][i]=x;}}
     void saveMeals(){SharedPreferences.Editor e=prefs.edit();for(int d=0;d<meals.length;d++)for(int i=0;i<3;i++)e.putString("meal_"+d+"_"+i,meals[d][i]);e.apply();}
     void draw(){
       body.removeAllViews();String[] titles={"Your meal plan","Monthly calendar","Today's shopping list","Meal recipes","Settings"};header.setText(titles[page]);
@@ -199,7 +199,7 @@ public class MainActivity extends Activity {
       LinkedHashSet<String> out=new LinkedHashSet<>();
       if(custom!=null){for(String x:custom.split(","))if(!x.trim().isEmpty())out.add(x.trim());}
       else{
-        for(String meal:meals[d])mapDishIngredients(meal,out);
+        for(int i=0;i<3;i++)mapDishIngredients(mealAt(d,i),out);
       }
       out.add("Milk");
       for(Map.Entry<String,?> en:prefs.getAll().entrySet())if(en.getKey().startsWith("custom_item_"))out.add(String.valueOf(en.getValue()));
@@ -308,11 +308,11 @@ public class MainActivity extends Activity {
     LinkedHashSet<String> ingredientsForDayDefault(int d){
       String old=prefs.getString("day_ingredients_"+d,null);
       if(old!=null){LinkedHashSet<String>x=new LinkedHashSet<>();for(String a:old.split(","))x.add(a.trim());return x;}
-      LinkedHashSet<String> x=new LinkedHashSet<>();for(String m:meals[d])mapDishIngredients(m,x);x.add("Milk");return x;
+      LinkedHashSet<String> x=new LinkedHashSet<>();for(int i=0;i<3;i++)mapDishIngredients(mealAt(d,i),x);x.add("Milk");return x;
     }
 
     void editMeal(int d){
-      dialogFields("Edit Day "+(d+1),new String[]{"Breakfast","Lunch","Dinner"},meals[d],a->{
+      dialogFields("Edit Day "+(d+1),new String[]{"Breakfast","Lunch","Dinner"},new String[]{mealAt(d,0),mealAt(d,1),mealAt(d,2)},a->{
         for(int i=0;i<3;i++)meals[d][i]=a[i];saveMeals();
         prefs.edit().remove("day_ingredients_"+d).apply();draw();
       });
