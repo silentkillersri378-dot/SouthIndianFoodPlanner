@@ -558,16 +558,43 @@ public class MainActivity extends Activity {
         if(software!=null)software.recycle();
       }
     }
+    int receiptOcrScore(com.google.mlkit.vision.text.Text result){
+      int mixed=0,alphaLines=0,lineCount=0,chars=0;
+      for(com.google.mlkit.vision.text.Text.TextBlock block:result.getTextBlocks()){
+        for(com.google.mlkit.vision.text.Text.Line line:block.getLines()){
+          String value=line.getText()==null?"":line.getText();
+          boolean alpha=value.matches("(?s).*\\p{L}.*");
+          boolean digit=value.matches("(?s).*\\d.*");
+          if(alpha)mixed+=digit?1:0;
+          if(alpha)alphaLines++;
+          lineCount++;
+          chars+=value.replaceAll("[^A-Za-z0-9]","").length();
+        }
+      }
+      // Correctly oriented receipt rows usually contain both a product name and its figures.
+      return mixed*1000+alphaLines*35+Math.min(chars,1200)+Math.min(lineCount,40)*3;
+    }
     com.google.mlkit.vision.text.Text recognizeReceipt(android.graphics.Bitmap bitmap)throws Exception{
       com.google.mlkit.vision.text.TextRecognizer recognizer=TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
-      com.google.mlkit.vision.text.Text original=Tasks.await(recognizer.process(InputImage.fromBitmap(bitmap,0)));
+      com.google.mlkit.vision.text.Text best=null;int bestScore=Integer.MIN_VALUE;
       android.graphics.Bitmap enhanced=enhanceReceiptBitmap(bitmap);
       try{
-        com.google.mlkit.vision.text.Text improved=Tasks.await(recognizer.process(InputImage.fromBitmap(enhanced,0)));
-        String a=original.getText()==null?"":original.getText(),b=improved.getText()==null?"":improved.getText();
-        int scoreA=a.replaceAll("[^A-Za-z0-9]","").length(),scoreB=b.replaceAll("[^A-Za-z0-9]","").length();
-        return scoreB>scoreA?improved:original;
-      }finally{enhanced.recycle();}
+        // Let ML Kit inspect all four orientations. A sideways receipt otherwise gets read
+        // column-by-column, merging product names, HSN codes, quantities and prices.
+        android.graphics.Bitmap[] sources=new android.graphics.Bitmap[]{bitmap,enhanced};
+        for(android.graphics.Bitmap source:sources){
+          for(int rotation:new int[]{0,90,180,270}){
+            com.google.mlkit.vision.text.Text candidate=Tasks.await(recognizer.process(InputImage.fromBitmap(source,rotation)));
+            int score=receiptOcrScore(candidate);
+            if(score>bestScore){best=candidate;bestScore=score;}
+          }
+        }
+        if(best==null)throw new IOException("No readable text found.");
+        return best;
+      }finally{
+        enhanced.recycle();
+        recognizer.close();
+      }
     }
     String billOcrText(com.google.mlkit.vision.text.Text result){
       ArrayList<com.google.mlkit.vision.text.Text.Line> lines=new ArrayList<>();
@@ -638,6 +665,7 @@ public class MainActivity extends Activity {
       if(n.contains("pineapple")||n.contains("pine apple")||compact.contains("pineappl"))return "Pineapple";
       if(n.contains("beetroot")||compact.contains("beetrot"))return "Beetroot";
       if(n.contains("tomato")||compact.contains("tom ato"))return "Tomato";
+      if(n.contains("drumstick")||compact.contains("driumstick"))return "Drumstick (Murungakkai)";
       if(n.contains("onion")||compact.contains("onoin"))return "Onion";
       // Match OCR text against the app's own grocery vocabulary across all meal plans and custom items.
       LinkedHashSet<String> vocabulary=new LinkedHashSet<>();
@@ -662,7 +690,9 @@ public class MainActivity extends Activity {
     String billUnit(String name,String rawName){
       String n=(name+" "+rawName).toLowerCase(Locale.US);
       if(n.contains("milk"))return "500 ml";
-      if(n.contains("carrot")||n.contains("chana dal")||n.contains("pineapple")||n.contains("coconut"))return "kg";
+      if(n.matches("(?s).*\\b(pc|pcs|piece|pieces)\\b.*"))return "pcs";
+      if(n.matches("(?s).*\\b(kg|kgs|kilo|kilos)\\b.*"))return "kg";
+      if(n.contains("tomato")||n.contains("potato")||n.contains("coconut")||n.contains("carrot")||n.contains("onion")||n.contains("drumstick"))return "kg";
       return "item";
     }
     boolean billNumber(String value){
@@ -696,13 +726,17 @@ public class MainActivity extends Activity {
       if(parts.length==0)return null;
       String first=parts[0].trim().replaceAll("\\s+"," ");
       first=first.replaceFirst("^\\d{1,2}\\s*","");
-      java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?<![A-Za-z])(?:₹\\s*)?([0-9][0-9,]*(?:\\.[0-9]+)?)(\\s*%)?(?![A-Za-z])").matcher(first);
+      // HSN is a product classification, not a quantity or price. Remove it before
+      // collecting numeric columns; otherwise an 8-digit HSN is mistaken for quantity.
+      first=first.replaceAll("(?i)\\bHSN\\s*[:#-]?\\s*\\d{4,12}\\b"," ");
+      first=first.replaceAll("(?i)\\bHSN\\b"," ").replaceAll("\\s+"," ").trim();
+      java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?<![A-Za-z])(?:₹\\s*)?([0-9][0-9,]*(?:[.,][0-9]{1,3})?)(\\s*%)?(?![A-Za-z])").matcher(first);
       ArrayList<Double> values=new ArrayList<>();
       int nameEnd=-1;
       while(m.find()){
         if(nameEnd<0)nameEnd=m.start();
         if(m.group(2)==null||m.group(2).trim().isEmpty()){
-          try{values.add(Double.parseDouble(m.group(1).replace(",","")));}catch(Exception ignored){}
+          try{values.add(Double.parseDouble(m.group(1).replace(",","").replace(',','.')));}catch(Exception ignored){}
         }
       }
       if(nameEnd<0||values.size()<3)return null;
@@ -711,13 +745,10 @@ public class MainActivity extends Activity {
         String extra=parts[i].trim().replaceAll("\\s+"," ");
         String lower=extra.toLowerCase(Locale.US);
         if(extra.isEmpty()||lower.startsWith("hsn")||lower.matches(".*\\b\\d{6,}\\b.*"))continue;
-        // Keep wrapped descriptions such as "Milk 500ml", but not a second line of price columns.
         if(extra.matches(".*\\d+[,.]\\d{2}.*"))continue;
         if(extra.matches("^[A-Za-z][A-Za-z0-9 /().-]*$"))name.append(" ").append(extra);
       }
-      double quantity=values.get(0),rate=values.get(1),total=values.get(values.size()-1);
-      // Some POS printers place the unit rate before the quantity (notably packaged milk).
-      if(quantity>1.0&&rate>0.0&&rate<=1.0){double swap=quantity;quantity=rate;rate=swap;}
+      double quantity=values.get(0),total=values.get(values.size()-1);
       if(quantity<=0||total<0||name.length()==0)return null;
       return new String[]{name.toString().trim(),String.format(Locale.US,"%.3f",quantity),String.format(Locale.US,"%.2f",total)};
     }
