@@ -603,7 +603,7 @@ public class MainActivity extends Activity {
       ArrayList<ArrayList<com.google.mlkit.vision.text.Text.Line>> rows=new ArrayList<>();
       for(com.google.mlkit.vision.text.Text.Line line:lines){
         android.graphics.Rect r=line.getBoundingBox();int cy=r==null?0:(r.top+r.bottom)/2;ArrayList<com.google.mlkit.vision.text.Text.Line> target=null;
-        for(ArrayList<com.google.mlkit.vision.text.Text.Line> row:rows){android.graphics.Rect first=row.get(0).getBoundingBox();int ry=first==null?0:(first.top+first.bottom)/2;int tolerance=Math.max(48,first==null?48:first.height()*2);if(Math.abs(cy-ry)<=tolerance){target=row;break;}}
+        for(ArrayList<com.google.mlkit.vision.text.Text.Line> row:rows){android.graphics.Rect first=row.get(0).getBoundingBox();int ry=first==null?0:(first.top+first.bottom)/2;int tolerance=Math.max(18,first==null?18:first.height());if(Math.abs(cy-ry)<=tolerance){target=row;break;}}
         if(target==null){target=new ArrayList<>();rows.add(target);}target.add(line);
       }
       StringBuilder out=new StringBuilder();
@@ -724,43 +724,39 @@ public class MainActivity extends Activity {
       return count>=2;
     }
     String[] parseNumberedBillRow(String source){
-      if(source==null||source.trim().isEmpty())return null;
-      // OCR can put the product name, HSN and numeric columns on separate lines.
-      // Join the row first, then remove classification codes and GST percentages.
-      String row=source.replaceAll("\\s+"," ").trim();
-      row=row.replaceFirst("^\\d{1,2}\\s+","");
-      row=row.replaceAll("(?i)H\\s*S\\s*N\\s*[:#-]?\\s*\\d{4,12}"," ");
-      row=row.replaceAll("(?i)\\bHSN\\b"," ");
-      row=row.replaceAll("(?<![A-Za-z0-9])[0-9]+(?:[.,][0-9]+)?\\s*%"," ");
-      row=row.replaceAll("\\s+"," ").trim();
-      java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?<![A-Za-z])(?:₹\\s*)?([0-9][0-9,]*(?:[.,][0-9]{1,3})?)(?![A-Za-z])").matcher(row);
-      ArrayList<Double> values=new ArrayList<>();int nameEnd=-1;
+      String[] parts=source.split("\\r?\\n");
+      if(parts.length==0)return null;
+      String first=parts[0].trim().replaceAll("\\s+"," ");
+      first=first.replaceFirst("^\\d{1,2}\\s*","");
+      // HSN is a product classification, not a quantity or price. Remove it before
+      // collecting numeric columns; otherwise an 8-digit HSN is mistaken for quantity.
+      first=first.replaceAll("(?i)\\bHSN\\s*[:#-]?\\s*\\d{4,12}\\b"," ");
+      first=first.replaceAll("(?i)\\bHSN\\b"," ").replaceAll("\\s+"," ").trim();
+      java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?<![A-Za-z])(?:₹\\s*)?([0-9][0-9,]*(?:[.,][0-9]{1,3})?)(\\s*%)?(?![A-Za-z])").matcher(first);
+      ArrayList<Double> values=new ArrayList<>();
+      int nameEnd=-1;
       while(m.find()){
-        double value;
-        try{value=Double.parseDouble(m.group(1).replace(",",""));}catch(Exception ignored){continue;}
-        // HSN codes are sometimes recognized without their HSN label.
-        if(value>=100000)continue;
         if(nameEnd<0)nameEnd=m.start();
-        values.add(value);
+        if(m.group(2)==null||m.group(2).trim().isEmpty()){
+          try{values.add(Double.parseDouble(m.group(1).replace(",","").replace(',','.')));}catch(Exception ignored){}
+        }
       }
-      if(nameEnd<0||values.size()<2)return null;
-      String name=row.substring(0,nameEnd).trim().replaceAll("[|:;,.-]+$","").trim();
-      if(name.isEmpty())return null;
-      // Supported till layouts: quantity/rate/discount/tax/total and rate/quantity/total.
-      // A value <= 1 following a normal unit price is the common milk layout (32.00, 1).
-      double quantity,unitPrice;
-      if(values.get(0)>1.0&&values.get(1)>0.0&&values.get(1)<=1.0){
-        unitPrice=values.get(0);quantity=values.get(1);
-      }else{
-        quantity=values.get(0);unitPrice=values.get(1);
+      if(nameEnd<0||values.size()<3)return null;
+      StringBuilder name=new StringBuilder(first.substring(0,nameEnd).trim());
+      for(int i=1;i<parts.length;i++){
+        String extra=parts[i].trim().replaceAll("\\s+"," ");
+        String lower=extra.toLowerCase(Locale.US);
+        if(extra.isEmpty()||lower.startsWith("hsn")||lower.matches(".*\\b\\d{6,}\\b.*"))continue;
+        if(extra.matches(".*\\d+[,.]\\d{2}.*"))continue;
+        if(extra.matches("^[A-Za-z][A-Za-z0-9 /().-]*$"))name.append(" ").append(extra);
       }
-      if(quantity<=0||unitPrice<=0||quantity>10000||unitPrice>100000)return null;
-      // The receipt's printed line total is authoritative. Do not replace it with
-      // quantity x unit price: retailers can apply rounding/discounts, and OCR can
-      // miss a quantity token on a separate text line. The review screen lets users
-      // correct any unreadable value before saving.
-      double total=values.get(values.size()-1);
-      return new String[]{name,String.format(Locale.US,"%.3f",quantity),String.format(Locale.US,"%.2f",total)};
+      double quantity=values.get(0),total=values.get(values.size()-1);
+      // Some tills print the unit price before the quantity (milk: 32.00 1 32.00).
+      if(quantity>1.0&&values.size()>2&&values.get(1)>0.0&&values.get(1)<=1.0){
+        quantity=values.get(1);
+      }
+      if(quantity<=0||total<0||name.length()==0)return null;
+      return new String[]{name.toString().trim(),String.format(Locale.US,"%.3f",quantity),String.format(Locale.US,"%.2f",total)};
     }
     String prepareBillRows(String raw){
       String normalized=(raw==null?"":raw).replace("\\n","\n").replace("\\r","\r").replace('\r','\n');
