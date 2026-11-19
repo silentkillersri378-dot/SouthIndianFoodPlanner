@@ -224,6 +224,8 @@ public class MainActivity extends Activity {
       if(m.contains("vegetable pulao"))add(s,"Mixed vegetables","Onion","Tomato","Ginger","Garlic","Mint leaves","Coriander leaves","Garam masala");
       if(m.contains("bisibele"))add(s,"Toor dal","Mixed vegetables","Tamarind","Bisibele bath masala","Peanuts");
       if(m.contains("sambar"))add(s,"Toor dal","Sambar powder","Tamarind","Onion","Tomato","Drumstick / mixed vegetables","Curry leaves");
+      // Drumstick gravy / murungakkai kuzhambu: map the main vegetable and its usual gravy base.
+      if(m.contains("drumstick")||m.contains("murungakkai"))add(s,"Drumstick (Murungakkai)","Onion","Tomato","Garlic","Tamarind","Chilli powder","Coriander powder","Turmeric powder","Mustard seeds","Fenugreek seeds","Curry leaves","Cooking oil");
       if(m.contains("rasam"))add(s,"Tomato","Tamarind","Rasam powder","Cumin seeds","Pepper","Garlic","Coriander leaves");
       if(m.contains("mor kuzhambu"))add(s,"Curd","Coconut","Green chilli","Cumin seeds","Toor dal","Turmeric powder");
       if(m.contains("keerai"))add(s,"Keerai / spinach","Moong dal","Onion","Garlic","Cumin seeds");
