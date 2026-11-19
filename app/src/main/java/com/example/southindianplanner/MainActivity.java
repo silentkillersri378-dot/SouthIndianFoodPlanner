@@ -603,7 +603,7 @@ public class MainActivity extends Activity {
       ArrayList<ArrayList<com.google.mlkit.vision.text.Text.Line>> rows=new ArrayList<>();
       for(com.google.mlkit.vision.text.Text.Line line:lines){
         android.graphics.Rect r=line.getBoundingBox();int cy=r==null?0:(r.top+r.bottom)/2;ArrayList<com.google.mlkit.vision.text.Text.Line> target=null;
-        for(ArrayList<com.google.mlkit.vision.text.Text.Line> row:rows){android.graphics.Rect first=row.get(0).getBoundingBox();int ry=first==null?0:(first.top+first.bottom)/2;int tolerance=Math.max(18,first==null?18:first.height());if(Math.abs(cy-ry)<=tolerance){target=row;break;}}
+        for(ArrayList<com.google.mlkit.vision.text.Text.Line> row:rows){android.graphics.Rect first=row.get(0).getBoundingBox();int ry=first==null?0:(first.top+first.bottom)/2;int tolerance=Math.max(48,first==null?48:first.height()*2);if(Math.abs(cy-ry)<=tolerance){target=row;break;}}
         if(target==null){target=new ArrayList<>();rows.add(target);}target.add(line);
       }
       StringBuilder out=new StringBuilder();
@@ -755,12 +755,11 @@ public class MainActivity extends Activity {
         quantity=values.get(0);unitPrice=values.get(1);
       }
       if(quantity<=0||unitPrice<=0||quantity>10000||unitPrice>100000)return null;
-      double calculated=Math.round(quantity*unitPrice*100.0)/100.0;
-      // Trust the printed total only when it is consistent with quantity x unit price.
-      // OCR often drops decimal points or digits in the last column (e.g. 3210).
-      double printed=values.get(values.size()-1);
-      double tolerance=Math.max(0.05,calculated*0.005);
-      double total=Math.abs(printed-calculated)<=tolerance?printed:calculated;
+      // The receipt's printed line total is authoritative. Do not replace it with
+      // quantity x unit price: retailers can apply rounding/discounts, and OCR can
+      // miss a quantity token on a separate text line. The review screen lets users
+      // correct any unreadable value before saving.
+      double total=values.get(values.size()-1);
       return new String[]{name,String.format(Locale.US,"%.3f",quantity),String.format(Locale.US,"%.2f",total)};
     }
     String prepareBillRows(String raw){
