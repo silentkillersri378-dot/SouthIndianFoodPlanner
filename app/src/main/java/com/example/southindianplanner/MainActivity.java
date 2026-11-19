@@ -31,7 +31,7 @@ public class MainActivity extends Activity {
     android.net.Uri billCameraUri;
 
     final String[][] meals={
-      {"Idli + coconut chutney","Rice + drumstick sambar + keerai poriyal","Onion dosa + tomato chutney"},
+      {"Idli + coconut chutney","Rice + drumstick sambar + keerai poriyal + rasam","Onion dosa + tomato chutney"},
       {"Ghee podi dosa","Rice + pumpkin sambar + carrot beans poriyal","Vegetable upma + coconut chutney"},
       {"Ven pongal + gothsu","Rice + carrot beans sambar + cabbage poriyal + egg","Ragi dosa + mint chutney"},
       {"Vegetable poha","Rice + brinjal kara kuzhambu + beetroot poriyal","Rava idli + sambar"},
