@@ -206,7 +206,8 @@ public class MainActivity extends Activity {
     void add(LinkedHashSet<String> s,String... values){for(String v:values)s.add(v);}
     void mapDishIngredients(String meal,LinkedHashSet<String> s){
       String m=meal.toLowerCase(Locale.US);
-      if(m.contains("same ")) { // leftover meal: don't list duplicate ingredients as new shopping needs
+      // Leftovers are intentionally mapped once as the same cooked dish.
+      if(m.contains("same ")){
         if(m.contains("lemon"))add(s,"Rice","Lemon","Peanuts","Curry leaves","Mustard seeds","Urad dal","Chana dal","Turmeric powder");
         else if(m.contains("rasam"))add(s,"Rice","Tomato","Tamarind","Rasam powder","Cumin seeds","Pepper","Curry leaves");
         else if(m.contains("mor kuzhambu"))add(s,"Rice","Curd","Coconut","Green chilli","Cumin seeds","Turmeric powder");
@@ -214,6 +215,8 @@ public class MainActivity extends Activity {
         else add(s,"Rice","Onion","Tomato","Cooking oil","Salt");
         return;
       }
+
+      // Staples and dish bases.
       if(m.contains("rice")||m.contains("pulao")||m.contains("bisibele"))add(s,"Rice");
       if(m.contains("idli")||m.contains("dosa")||m.contains("uthappam"))add(s,"Idli/dosa batter or rice + urad dal","Cooking oil");
       if(m.contains("poha"))add(s,"Poha","Onion","Potato","Peanuts","Green chilli","Lemon","Curry leaves");
@@ -229,9 +232,36 @@ public class MainActivity extends Activity {
       if(m.contains("keerai"))add(s,"Keerai / spinach","Moong dal","Onion","Garlic","Cumin seeds");
       if(m.contains("kootu"))add(s,"Toor dal","Coconut","Cumin seeds","Green chilli");
       if(m.contains("dal")||m.contains("paruppu"))add(s,"Toor dal","Onion","Tomato","Garlic","Turmeric powder");
-      if(m.contains("poriyal")){if(m.contains("carrot"))add(s,"Carrot");if(m.contains("beans"))add(s,"Beans");if(m.contains("cabbage"))add(s,"Cabbage");if(m.contains("beetroot"))add(s,"Beetroot");if(m.contains("potato"))add(s,"Potato");add(s,"Coconut","Mustard seeds","Urad dal","Curry leaves");}
+
+      // Named vegetables: add only vegetables actually named in the selected meal.
+      if(m.contains("drumstick")||m.contains("murungakkai"))add(s,"Drumstick (Murungakkai)","Onion","Tomato","Garlic","Tamarind","Chilli powder","Coriander powder","Turmeric powder","Mustard seeds","Fenugreek seeds","Curry leaves","Cooking oil");
+      if(m.contains("poriyal")){
+        if(m.contains("carrot"))add(s,"Carrot");
+        if(m.contains("beans"))add(s,"Beans");
+        if(m.contains("cabbage"))add(s,"Cabbage");
+        if(m.contains("beetroot"))add(s,"Beetroot");
+        if(m.contains("potato"))add(s,"Potato");
+        add(s,"Coconut","Mustard seeds","Urad dal","Curry leaves");
+      }
+      if(m.contains("carrot"))add(s,"Carrot");
+      if(m.contains("beans"))add(s,"Beans");
+      if(m.contains("cabbage"))add(s,"Cabbage");
+      if(m.contains("beetroot"))add(s,"Beetroot");
+      if(m.contains("brinjal")||m.contains("eggplant"))add(s,"Brinjal");
+      if(m.contains("okra")||m.contains("ladies finger")||m.contains("vendakkai"))add(s,"Okra (Ladies finger)");
+      if(m.contains("cauliflower"))add(s,"Cauliflower");
+      if(m.contains("broccoli"))add(s,"Broccoli");
+      if(m.contains("capsicum")||m.contains("bell pepper"))add(s,"Capsicum");
+      if(m.contains("bottle gourd")||m.contains("sorakkai"))add(s,"Bottle gourd");
+      if(m.contains("ridge gourd")||m.contains("peerkangai"))add(s,"Ridge gourd");
+      if(m.contains("pumpkin")||m.contains("poosanikai"))add(s,"Pumpkin");
+      if(m.contains("radish")||m.contains("mullangi"))add(s,"Radish");
+      if(m.contains("cucumber")||m.contains("vellarikai"))add(s,"Cucumber");
+      if(m.contains("sweet corn"))add(s,"Sweet corn");
       if(m.contains("potato"))add(s,"Potato","Onion","Green chilli","Turmeric powder");
       if(m.contains("avial"))add(s,"Mixed vegetables","Coconut","Curd","Cumin seeds","Green chilli","Curry leaves");
+
+      // Breakfast, sides and protein.
       if(m.contains("adai"))add(s,"Toor dal","Chana dal","Urad dal","Rice","Onion","Green chilli");
       if(m.contains("pesarattu"))add(s,"Whole green gram","Ginger","Green chilli","Onion");
       if(m.contains("chapati"))add(s,"Wheat flour","Oil");
@@ -243,6 +273,20 @@ public class MainActivity extends Activity {
       if(m.contains("wheat dosa"))add(s,"Wheat flour","Onion","Green chilli");
       if(m.contains("onion dosa"))add(s,"Onion","Idli/dosa batter or rice + urad dal");
       if(m.contains("tomato dosa"))add(s,"Tomato","Idli/dosa batter or rice + urad dal");
+
+      // Fruit is listed only when the selected meal explicitly includes it.
+      if(m.contains("banana"))add(s,"Banana");
+      if(m.contains("apple"))add(s,"Apple");
+      if(m.contains("orange"))add(s,"Orange");
+      if(m.contains("mango"))add(s,"Mango");
+      if(m.contains("pineapple"))add(s,"Pineapple");
+      if(m.contains("papaya"))add(s,"Papaya");
+      if(m.contains("guava"))add(s,"Guava");
+      if(m.contains("grape"))add(s,"Grapes");
+      if(m.contains("watermelon"))add(s,"Watermelon");
+      if(m.contains("fruit salad"))add(s,"Banana","Apple","Orange","Papaya","Grapes");
+
+      // Basic cooking essentials for a cooked meal.
       add(s,"Salt","Cooking oil","Mustard seeds","Curry leaves");
     }
 
@@ -598,7 +642,7 @@ public class MainActivity extends Activity {
       // Match OCR text against the app's own grocery vocabulary across all meal plans and custom items.
       LinkedHashSet<String> vocabulary=new LinkedHashSet<>();
       for(int day=0;day<meals.length;day++)vocabulary.addAll(ingredientsForDay(day));
-      add(vocabulary,"Rice","Wheat flour","Atta","Potato","Green chilli","Green beans","Cabbage","Cauliflower","Brinjal","Egg","Eggs","Curd","Toor dal","Moong dal","Urad dal","Peanuts","Lemon","Garlic","Ginger","Tamarind","Cooking oil","Salt","Sugar","Coriander leaves","Curry leaves","Mustard seeds","Cumin seeds","Pepper","Turmeric powder","Chilli powder","Rasam powder","Sambar powder");
+      add(vocabulary,"Rice","Wheat flour","Atta","Ragi flour","Millets","Poha","Potato","Sweet potato","Onion","Tomato","Carrot","Beans","Green beans","Drumstick (Murungakkai)","Brinjal","Okra (Ladies finger)","Cabbage","Cauliflower","Capsicum","Bottle gourd","Ridge gourd","Pumpkin","Radish","Cucumber","Beetroot","Spinach","Broccoli","Sweet corn","Green chilli","Coriander leaves","Mint leaves","Curry leaves","Coconut","Lemon","Banana","Apple","Orange","Mango","Pineapple","Papaya","Guava","Grapes","Watermelon","Pomegranate","Toor dal","Moong dal","Chana dal","Urad dal","Whole green gram","Peanuts","Roasted gram","Sesame seeds","Curd","Milk","Paneer","Eggs","Garlic","Ginger","Tamarind","Cooking oil","Ghee","Salt","Sugar","Jaggery","Tea","Coffee","Mustard seeds","Cumin seeds","Fenugreek seeds","Pepper","Turmeric powder","Chilli powder","Coriander powder","Garam masala","Rasam powder","Sambar powder","Bisibele bath masala");
       String best=null;int bestDistance=Integer.MAX_VALUE;
       for(String candidate:vocabulary){
         String c=candidate.toLowerCase(Locale.US).replaceAll("[^a-z0-9 ]"," ").replaceAll("\\s+"," ").trim();
