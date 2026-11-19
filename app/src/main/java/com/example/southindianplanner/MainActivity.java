@@ -83,6 +83,7 @@ public class MainActivity extends Activity {
           .putInt("morning_hour",8).putInt("morning_min",0).putInt("evening_hour",19).putInt("evening_min",0)
           .remove("budget").putBoolean("v3_final_migration",true).apply();
       }
+      if(!prefs.getBoolean("meal_plan_rules_v2",false)){SharedPreferences.Editor reset=prefs.edit();for(int d=0;d<31;d++)for(int i=0;i<3;i++)reset.remove("meal_"+d+"_"+i);reset.putBoolean("meal_plan_rules_v2",true).apply();}
       loadSavedMeals();
       build();
       createNotificationChannel();
