@@ -658,14 +658,16 @@ public class MainActivity extends Activity {
       String compact=n.replace(" ","");
       if(n.isEmpty())return "";
       // Known brand/product aliases and frequent OCR confusions.
-      if(n.contains("nandini")||n.contains("nandin")||n.contains("standard milk")||n.equals("milk")||n.contains("milk 500"))return "Milk";
+      if(n.contains("nandini")||n.contains("nandin")||compact.contains("nandini")||n.contains("standard milk")||n.equals("milk")||n.contains("milk 500"))return "Milk";
       if(n.contains("carrot")||compact.contains("carot")||compact.contains("car0t"))return "Carrot";
       if(n.contains("chana")||n.contains("channa")||n.contains("dhal")&&n.contains("chan")||compact.contains("chanadal"))return "Chana dal";
       if(n.contains("coconut")||compact.contains("cocnut")||compact.contains("cocon ut"))return "Coconut";
       if(n.contains("pineapple")||n.contains("pine apple")||compact.contains("pineappl"))return "Pineapple";
       if(n.contains("beetroot")||compact.contains("beetrot"))return "Beetroot";
-      if(n.contains("tomato")||compact.contains("tom ato"))return "Tomato";
+      if(n.contains("tomato")||compact.contains("tom ato")||compact.contains("tonato")||compact.contains("tonatolocal"))return "Tomato";
       if(n.contains("drumstick")||compact.contains("driumstick"))return "Drumstick (Murungakkai)";
+      if(n.contains("potato")||compact.equals("poato")||compact.startsWith("poatolocal"))return "Potato";
+      if(n.contains("coconut")||compact.contains("coz0nut")||compact.contains("cozonut"))return "Coconut";
       if(n.contains("onion")||compact.contains("onoin"))return "Onion";
       // Match OCR text against the app's own grocery vocabulary across all meal plans and custom items.
       LinkedHashSet<String> vocabulary=new LinkedHashSet<>();
@@ -749,6 +751,10 @@ public class MainActivity extends Activity {
         if(extra.matches("^[A-Za-z][A-Za-z0-9 /().-]*$"))name.append(" ").append(extra);
       }
       double quantity=values.get(0),total=values.get(values.size()-1);
+      // Some tills print the unit price before the quantity (milk: 32.00 1 32.00).
+      if(quantity>1.0&&values.size()>2&&values.get(1)>0.0&&values.get(1)<=1.0){
+        quantity=values.get(1);
+      }
       if(quantity<=0||total<0||name.length()==0)return null;
       return new String[]{name.toString().trim(),String.format(Locale.US,"%.3f",quantity),String.format(Locale.US,"%.2f",total)};
     }
