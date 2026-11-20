@@ -133,7 +133,7 @@ public class MainActivity extends Activity {
       if(diff<0)diff=0;
       return (int)(diff%planDays());
     }
-    int planDays(){Calendar c=Calendar.getInstance();return c.getActualMaximum(Calendar.DAY_OF_MONTH);}
+    int planDays(){return 31;}
     void build(){
       root=col();root.setBackgroundColor(pale);setContentView(root);
       root.setOnApplyWindowInsetsListener((v,in)->{
