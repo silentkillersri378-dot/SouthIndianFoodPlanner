@@ -171,7 +171,21 @@ public class MainActivity extends Activity {
         .setPositiveButton("Save",(d,w)->{String[] v=new String[fields.length];for(int i=0;i<v.length;i++)v[i]=fields[i].getText().toString().trim();save.save(v);}).show();
     }
     boolean isWeekend(int d){Calendar c=Calendar.getInstance();c.set(Calendar.DAY_OF_MONTH,1);c.add(Calendar.DATE,d);int w=c.get(Calendar.DAY_OF_WEEK);return w==Calendar.SATURDAY||w==Calendar.SUNDAY;}
-    String mealAt(int d,int slot){String value=meals[d][slot];if(isWeekend(d)){if(slot==0 && d%2==0)value="Poori + potato masala";if(slot==2 && d%2==1)value="Chapati + vegetable kurma";}return value;}
+    String mealAt(int d,int slot){
+      String value=meals[d][slot];
+      if(isWeekend(d)){
+        if(slot==0 && d%2==0)value="Poori + potato masala";
+        if(slot==2 && d%2==1)value="Chapati + vegetable kurma";
+        return value;
+      }
+      String low=value.toLowerCase(Locale.US);
+      if(low.contains("chapati")||low.contains("poori")){
+        if(slot==0)return "Dosa + chutney";
+        if(slot==2)return "Dosa + sambar";
+        return "Rice + sambar + poriyal";
+      }
+      return value;
+    }
     String mealText(int d){return "Breakfast: "+mealAt(d,0)+"\nLunch: "+mealAt(d,1)+"\nDinner: "+mealAt(d,2);}
     void loadSavedMeals(){for(int d=0;d<meals.length;d++)for(int i=0;i<3;i++){String x=prefs.getString("meal_"+d+"_"+i,null);if(x!=null && !x.toLowerCase(Locale.US).matches(".*(idiyappam|idiappam|pesarattu|uthappam|adai|avial|appam).*"))meals[d][i]=x;}}
     void saveMeals(){SharedPreferences.Editor e=prefs.edit();for(int d=0;d<meals.length;d++)for(int i=0;i<3;i++)e.putString("meal_"+d+"_"+i,meals[d][i]);e.apply();}
