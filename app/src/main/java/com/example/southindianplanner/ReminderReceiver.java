@@ -7,9 +7,40 @@ public class ReminderReceiver extends BroadcastReceiver {
   boolean morning=slot.equals("morning");
   SharedPreferences p=c.getSharedPreferences("planner_v3",0);if(!p.getBoolean(slot+"_enabled",true))return;
   Calendar now=Calendar.getInstance(),start=Calendar.getInstance();start.setTimeInMillis(p.getLong("cycle_start",System.currentTimeMillis()));
-  midnight(start);midnight(now);int day=(int)(Math.max(0,(now.getTimeInMillis()-start.getTimeInMillis())/86400000L)%30);int target=morning?day:(day+1)%30;
+  midnight(start);midnight(now);int day=(int)(Math.max(0,(now.getTimeInMillis()-start.getTimeInMillis())/86400000L)%31);int target=morning?day:(day+1)%31;
   String[][] menu={
-   {"Idli + sambar","Rice + keerai kootu + carrot poriyal","Dosa + egg omelette"},{"Vegetable poha","Lemon rice + curd + potato fry","Same lemon rice + curd"},{"Masala dosa + chutney","Rice + sambar + beans poriyal","Egg dosa"},{"Tomato rice","Rice + rasam + cabbage poriyal","Same rice + rasam"},{"Ragi dosa + chutney","Rice + mor kuzhambu + beetroot poriyal","Wheat dosa + dal"},{"Poori + potato masala","Rice + sambar + avial","Same sambar rice"},{"Adai + avial","Rice + rasam + beans poriyal","Chapati + egg gravy"},{"Vegetable uthappam","Rice + keerai dal + carrot poriyal","Dosa + coconut chutney"},{"Lemon rice + curd","Rice + sambar + cabbage poriyal","Same rice + sambar"},{"Idli + sambar","Bisibele bath + curd","Egg omelette + dosa"},{"Vegetable poha","Rice + rasam + potato fry","Same rice + rasam"},{"Pesarattu + chutney","Rice + mor kuzhambu + beans poriyal","Tomato dosa + chutney"},{"Poori + potato masala","Rice + sambar + avial","Same sambar rice"},{"Adai + avial","Rice + paruppu + carrot poriyal","Chapati + paneer gravy"},{"Kal dosa + chutney","Rice + spinach dal + carrot poriyal","Egg dosa"},{"Coconut rice + curd","Rice + sambar + beans poriyal","Same rice + sambar"},{"Ragi idli + sambar","Tomato rice + curd","Egg bhurji + dosa"},{"Vegetable poha","Rice + mor kuzhambu + beetroot poriyal","Same rice + mor kuzhambu"},{"Onion dosa + chutney","Rice + keerai kootu + potato fry","Vegetable uthappam"},{"Poori + potato masala","Rice + sambar + avial","Same sambar rice"},{"Adai + avial","Rice + rasam + beans poriyal","Chapati + egg curry"},{"Idli + sambar","Rice + cabbage kootu + carrot poriyal","Dosa + egg omelette"},{"Tamarind rice + curd","Rice + rasam + potato poriyal","Same rice + rasam"},{"Vegetable uthappam","Rice + keerai dal + beans poriyal","Egg dosa"},{"Lemon rice + curd","Rice + mor kuzhambu + cabbage poriyal","Same rice + mor kuzhambu"},{"Pesarattu + chutney","Vegetable pulao + curd","Dosa + tomato chutney"},{"Poori + potato masala","Rice + sambar + avial","Same sambar rice"},{"Adai + avial","Rice + paruppu + poriyal","Chapati + egg gravy"},{"Vegetable poha","Rice + sambar + spinach poriyal","Same sambar rice"},{"Tomato dosa","Vegetable pulao + curd","Egg omelette + dosa"}};
+   {"Idli + sambar","Rice + brinjal drumstick sambar + carrot beans poriyal","Dosa + chutney"},
+   {"Onion dosa + egg omelette","Lemon rice + potato fry + curd","Same lemon rice + curd"},
+   {"Rava idli + sambar","Rice + drumstick sambar + keerai poriyal","Dosa + tomato chutney"},
+   {"Poha with carrots and peas","Rice + rasam + beans poriyal + egg","Same rice + rasam"},
+   {"Dosa + coconut chutney","Rice + mor kuzhambu + beetroot poriyal","Dosa + tomato chutney"},
+   {"Chapati + egg curry","Tomato rice + cabbage poriyal + curd","Same tomato rice + curd"},
+   {"Set dosa + vegetable kurma","Rice + sambar + avial","Chapati + paneer gravy"},
+   {"Mini idli + sambar","Rice + pumpkin sambar + carrot beans poriyal","Sambar rice"},
+   {"Lemon poha","Tamarind rice + potato fry + curd","Same tamarind rice + curd"},
+   {"Idli + podi","Rice + keerai dal + carrot poriyal","Dosa + chutney"},
+   {"Poha with peas","Rice + radish sambar + potato roast","Rice + sambar"},
+   {"Tomato dosa + mint chutney","Rice + kathirikai kara kuzhambu + beetroot poriyal","Dosa + sambar"},
+   {"Chapati + vegetable kurma","Coconut rice + beans poriyal + curd","Same coconut rice + curd"},
+   {"Paper dosa + sambar","Rice + mixed vegetable kootu + carrot beans poriyal","Chapati + egg curry"},
+   {"Ragi idli + sambar","Rice + drumstick kara kuzhambu + beetroot poriyal","Dosa + tomato chutney"},
+   {"Onion dosa + tomato gravy","Tomato rice + carrot beans poriyal + curd","Same tomato rice + curd"},
+   {"Channa sundal + dosa","Rice + spinach dal + carrot poriyal","Dosa + coconut chutney"},
+   {"Lemon poha","Rice + ladies finger sambar + carrot poriyal + egg","Sambar rice"},
+   {"Dosa + sambar","Rice + rasam + cabbage poriyal","Same rice + rasam"},
+   {"Chapati + paneer gravy","Vegetable pulao + curd + potato fry","Same vegetable pulao + curd"},
+   {"Set dosa + vegetable kurma","Rice + pumpkin sambar + potato fry","Dosa + chutney"},
+   {"Idli + coconut chutney","Rice + keerai kootu + carrot poriyal","Dosa + sambar"},
+   {"Lemon sevai","Lemon rice + cabbage poriyal + curd","Same lemon rice + curd"},
+   {"Dosa + egg omelette","Rice + drumstick potato gravy + carrot poriyal","Dosa + tomato chutney"},
+   {"Rava idli + sambar","Rice + tomato garlic kuzhambu + spinach poriyal","Rice + rasam"},
+   {"Vegetable dosa","Bisibele bath + curd","Same bisibele bath"},
+   {"Tomato dosa + chutney","Rice + vendakkai puli kuzhambu + keerai poriyal","Dosa + sambar"},
+   {"Poha with carrots and peas","Rice + paruppu + poriyal","Rice + rasam"},
+   {"Idli + sambar","Rice + chow chow sambar + beetroot poriyal","Sambar rice"},
+   {"Onion dosa + egg omelette","Tamarind rice + carrot beans poriyal + curd","Same tamarind rice + curd"},
+   {"Chapati + egg curry","Rice + potato peas gravy + cabbage poriyal","Dosa + tomato chutney"}
+  };
   String[] labels={"Breakfast","Lunch","Dinner"};StringBuilder body=new StringBuilder();
   for(int k=0;k<3;k++){body.append(labels[k]).append(": ").append(p.getString("meal_"+target+"_"+k,menu[target][k]));if(k<2)body.append("\n");}
   body.append(morning?"\n500 ml milk is included in today's checklist.":"\nTomorrow's missing ingredients:");
